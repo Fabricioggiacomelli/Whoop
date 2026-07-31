@@ -1,5 +1,7 @@
 import type { NextAuthConfig } from "next-auth";
 
+import type { Role } from "@/generated/prisma/enums";
+
 /**
  * Configuração enxuta: nada aqui toca Prisma, Redis ou o binário nativo do Argon2 — é a
  * metade do config usada por `proxy.ts` (gate de rotas). A configuração completa (adapter,
@@ -12,6 +14,16 @@ export const authConfig = {
   },
   providers: [], // populado em auth.ts
   callbacks: {
+    // Sem isto, esta instância "edge-safe" do NextAuth (usada só para *decodificar* o JWT
+    // no proxy) nunca preenche `session.user.role` — o token já carrega `role` (gravado no
+    // sign-in real, em auth.ts), só falta copiá-lo para o objeto de sessão que o
+    // `authorized` abaixo lê. Sem isso, `auth.user.role === "ADMIN"` era sempre falso e o
+    // proxy bloqueava até o próprio admin.
+    session({ session, token }) {
+      if (token.uid) session.user.id = token.uid as string;
+      if (token.role) session.user.role = token.role as Role;
+      return session;
+    },
     authorized({ auth, request }) {
       const isLoggedIn = Boolean(auth?.user);
       const { pathname } = request.nextUrl;

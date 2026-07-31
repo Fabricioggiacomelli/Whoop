@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "@/generated/prisma/client";
+import { logger } from "@/lib/logger";
 
 /**
  * Singleton do Prisma Client. Em desenvolvimento, o Next.js recarrega módulos a cada
@@ -12,9 +13,23 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const adapter = new PrismaPg({
-    connectionString: process.env.DATABASE_URL,
-  });
+  const adapter = new PrismaPg(
+    {
+      connectionString: process.env.DATABASE_URL,
+      // Recicla conexões ociosas proativamente — bancos serverless (Neon, e o Postgres
+      // efêmero do `prisma dev`) derrubam conexões ociosas do próprio lado, e um cliente
+      // "morto" ainda no pool derruba a próxima query com "Connection terminated
+      // unexpectedly" em vez de simplesmente ser substituído.
+      idleTimeoutMillis: 10_000,
+      max: 10,
+    },
+    {
+      // Sem isto, o erro de uma conexão ociosa encerrada pelo servidor vira um evento
+      // 'error' não tratado no pool — que pode derrubar o processo Node inteiro.
+      onPoolError: (error) => logger.warn("db.pool_error", { message: error.message }),
+      onConnectionError: (error) => logger.warn("db.connection_error", { message: error.message }),
+    },
+  );
 
   return new PrismaClient({
     adapter,
