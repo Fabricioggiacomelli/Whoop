@@ -123,19 +123,32 @@ const CATEGORY_LABELS: Record<ScoreCategory, string> = {
 async function getCampeoes() {
   const athletes = await getAthletes();
   const categories: ScoreCategory[] = ["SLEEP", "RECOVERY", "STRAIN", "CONSISTENCY", "EVOLUTION", "HABITS"];
+  const userIds = athletes.map((a) => a.userId);
 
+  // Uma consulta por categoria (paralelas), não uma por (categoria × atleta) — a versão
+  // anterior fazia N consultas sequenciais dentro de cada categoria.
   const champions = await Promise.all(
     categories.map(async (category) => {
-      let best: { userId: string; avg: number } | null = null;
-      for (const athlete of athletes) {
-        const components = await db.scoreComponent.findMany({
-          where: { category, dailyScore: { userId: athlete.userId } },
-          select: { pointsEarned: true },
-        });
-        if (components.length === 0) continue;
-        const avg = components.reduce((sum, c) => sum + Number(c.pointsEarned), 0) / components.length;
-        if (!best || avg > best.avg) best = { userId: athlete.userId, avg };
+      const components = await db.scoreComponent.findMany({
+        where: { category, dailyScore: { userId: { in: userIds } } },
+        select: { pointsEarned: true, dailyScore: { select: { userId: true } } },
+      });
+
+      const totals = new Map<string, { sum: number; count: number }>();
+      for (const component of components) {
+        const userId = component.dailyScore.userId;
+        const entry = totals.get(userId) ?? { sum: 0, count: 0 };
+        entry.sum += Number(component.pointsEarned);
+        entry.count += 1;
+        totals.set(userId, entry);
       }
+
+      let best: { userId: string; avg: number } | null = null;
+      for (const [userId, { sum, count }] of totals) {
+        const avg = sum / count;
+        if (!best || avg > best.avg) best = { userId, avg };
+      }
+
       const athlete = athletes.find((a) => a.userId === best?.userId);
       return {
         category,

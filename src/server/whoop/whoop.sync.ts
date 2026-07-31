@@ -4,6 +4,7 @@ import { computeDailyScore } from "@/server/scoring/engine";
 import { recomputeRankingsForDate } from "@/server/services/ranking.service";
 import { generateRoastForUser } from "@/server/services/roast.service";
 
+import { mapWithConcurrency } from "./concurrency";
 import { getValidAccessToken } from "./whoop.auth";
 import { WhoopClient } from "./whoop.client";
 import {
@@ -105,19 +106,18 @@ export async function syncAllResourcesForUser(userId: string) {
     client.getWorkouts(),
   ]);
 
-  for (const raw of cyclesPage.records) await upsertCycle(userId, raw);
-  for (const raw of sleepsPage.records) await upsertSleep(userId, raw);
-  for (const raw of recoveriesPage.records) await upsertRecovery(userId, raw);
-  for (const raw of workoutsPage.records) await upsertWorkout(userId, raw);
+  const CONCURRENCY = 3;
+  await mapWithConcurrency(cyclesPage.records, CONCURRENCY, (raw) => upsertCycle(userId, raw));
+  await mapWithConcurrency(sleepsPage.records, CONCURRENCY, (raw) => upsertSleep(userId, raw));
+  await mapWithConcurrency(recoveriesPage.records, CONCURRENCY, (raw) => upsertRecovery(userId, raw));
+  await mapWithConcurrency(workoutsPage.records, CONCURRENCY, (raw) => upsertWorkout(userId, raw));
 
   await db.whoopConnection.update({
     where: { userId },
     data: { status: "UP_TO_DATE", lastSyncedAt: new Date() },
   });
 
-  for (const raw of cyclesPage.records) {
-    await closeDayIfReady(userId, String(raw.id));
-  }
+  await mapWithConcurrency(cyclesPage.records, CONCURRENCY, (raw) => closeDayIfReady(userId, String(raw.id)));
 
   logger.info("whoop.sync.completed", {
     userId,

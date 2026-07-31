@@ -23,40 +23,44 @@ async function getCategoryChampions() {
     where: { role: "PARTICIPANT" },
     include: { profile: true, colorAssignment: true },
   });
+  const userIds = users.map((u) => u.id);
 
-  const champions: Array<{
-    category: ScoreCategory;
-    nickname: string;
-    colorHex: string | null;
-    avgPoints: number;
-  }> = [];
-
-  for (const category of CATEGORY_ORDER) {
-    let best: { userId: string; avg: number } | null = null;
-
-    for (const user of users) {
+  // Uma consulta por categoria (paralelas), não uma por (categoria × usuário) — a versão
+  // anterior fazia 6×N consultas sequenciais, lento sob a latência de um Postgres remoto.
+  const results = await Promise.all(
+    CATEGORY_ORDER.map(async (category) => {
       const components = await db.scoreComponent.findMany({
-        where: { category, dailyScore: { userId: user.id } },
-        select: { pointsEarned: true },
+        where: { category, dailyScore: { userId: { in: userIds } } },
+        select: { pointsEarned: true, dailyScore: { select: { userId: true } } },
       });
-      if (components.length === 0) continue;
 
-      const avg = components.reduce((sum, c) => sum + Number(c.pointsEarned), 0) / components.length;
-      if (!best || avg > best.avg) best = { userId: user.id, avg };
-    }
+      const totals = new Map<string, { sum: number; count: number }>();
+      for (const component of components) {
+        const userId = component.dailyScore.userId;
+        const entry = totals.get(userId) ?? { sum: 0, count: 0 };
+        entry.sum += Number(component.pointsEarned);
+        entry.count += 1;
+        totals.set(userId, entry);
+      }
 
-    if (best) {
-      const user = users.find((u) => u.id === best.userId);
-      champions.push({
+      let best: { userId: string; avg: number } | null = null;
+      for (const [userId, { sum, count }] of totals) {
+        const avg = sum / count;
+        if (!best || avg > best.avg) best = { userId, avg };
+      }
+      if (!best) return null;
+
+      const user = users.find((u) => u.id === best!.userId);
+      return {
         category,
         nickname: user?.profile?.nickname ?? "—",
         colorHex: user?.colorAssignment?.hex ?? null,
         avgPoints: Math.round(best.avg * 10) / 10,
-      });
-    }
-  }
+      };
+    }),
+  );
 
-  return champions;
+  return results.filter((r): r is NonNullable<typeof r> => r !== null);
 }
 
 export default async function CategoriasPage() {

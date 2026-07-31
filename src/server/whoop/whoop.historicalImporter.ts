@@ -1,12 +1,14 @@
 import { db } from "@/server/db";
 import { logger } from "@/lib/logger";
 
+import { mapWithConcurrency } from "./concurrency";
 import { getValidAccessToken } from "./whoop.auth";
 import { WhoopClient, type PageParams } from "./whoop.client";
 import { upsertCycle, upsertRecovery, upsertSleep, upsertWorkout, closeDayIfReady } from "./whoop.sync";
 import type { WhoopPaginated } from "./whoop.types";
 
 const MAX_PAGES_PER_INVOCATION = 20;
+const CLOSE_DAY_CONCURRENCY = 3;
 
 type ResourceName = "cycle" | "recovery" | "sleep" | "workout";
 
@@ -26,10 +28,8 @@ async function importResource<T>(
   for (let page = 0; page < MAX_PAGES_PER_INVOCATION; page++) {
     const result = await fetchPage({ limit: 25, nextToken: nextToken ?? undefined });
 
-    for (const record of result.records) {
-      await persist(record);
-      imported += 1;
-    }
+    await mapWithConcurrency(result.records, CLOSE_DAY_CONCURRENCY, persist);
+    imported += result.records.length;
 
     nextToken = result.next_token ?? undefined;
 
@@ -83,10 +83,23 @@ export async function runHistoricalImportBatch(userId: string) {
     });
 
     if (allDone) {
-      const allCycles = await db.whoopCycle.findMany({ where: { userId }, select: { externalId: true } });
-      for (const { externalId } of allCycles) {
-        await closeDayIfReady(userId, externalId);
-      }
+      // Só tenta fechar ciclos que ainda não têm um dia CLOSED/REPROCESSED — sem isso, toda
+      // vez que o import terminasse (ex: reconexão) a engine recalcularia o histórico
+      // inteiro de novo, o que é lento e desnecessário para dias que já fecharam.
+      const [allCycles, closedPerformances] = await Promise.all([
+        db.whoopCycle.findMany({ where: { userId }, select: { id: true, externalId: true } }),
+        db.dailyPerformance.findMany({
+          where: { userId, status: { in: ["CLOSED", "REPROCESSED"] } },
+          select: { cycleId: true },
+        }),
+      ]);
+
+      const closedCycleIds = new Set(closedPerformances.map((p) => p.cycleId));
+      const pendingCycles = allCycles.filter((c) => !closedCycleIds.has(c.id));
+
+      await mapWithConcurrency(pendingCycles, CLOSE_DAY_CONCURRENCY, (cycle) =>
+        closeDayIfReady(userId, cycle.externalId),
+      );
 
       await db.whoopConnection.update({
         where: { userId },

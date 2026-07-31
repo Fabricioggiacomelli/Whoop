@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { auth } from "@/server/auth";
 import { logger } from "@/lib/logger";
@@ -41,12 +41,27 @@ export async function GET(request: Request) {
 
   try {
     await exchangeCodeAndConnect(session.user.id, code);
-    // Primeiro lote roda inline (poucos dias, rápido); lotes seguintes ficam para o cron de
-    // reconciliação continuar caso o histórico seja grande — ver WHOOP_INTEGRATION.md §4.
-    await runHistoricalImportBatch(session.user.id);
-    return redirect("/perfil?whoop_connected=1");
   } catch (error) {
     logger.warn("whoop.oauth.callback_failed", { userId: session.user.id, message: (error as Error).message });
     return redirect("/perfil?whoop_error=exchange_failed");
   }
+
+  // O import histórico (e o fechamento retroativo de dias, que roda a engine de pontuação
+  // para cada dia) pode levar de segundos a minutos para uma conta com histórico real —
+  // fazer isso antes do redirect deixava "Conectar WHOOP" extremamente lento. `after()` roda
+  // isso depois da resposta já ter sido enviada ao navegador; o usuário vê o Perfil na hora,
+  // e o progresso continua via WhoopSyncCursor (retomável) e o cron de reconciliação caso
+  // um lote não seja suficiente — ver WHOOP_INTEGRATION.md §4.
+  after(async () => {
+    try {
+      await runHistoricalImportBatch(session.user.id);
+    } catch (error) {
+      logger.warn("whoop.oauth.background_import_failed", {
+        userId: session.user.id,
+        message: (error as Error).message,
+      });
+    }
+  });
+
+  return redirect("/perfil?whoop_connected=1");
 }
