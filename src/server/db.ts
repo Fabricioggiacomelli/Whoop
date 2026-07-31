@@ -20,8 +20,13 @@ function createPrismaClient() {
       // efêmero do `prisma dev`) derrubam conexões ociosas do próprio lado, e um cliente
       // "morto" ainda no pool derruba a próxima query com "Connection terminated
       // unexpectedly" em vez de simplesmente ser substituído.
-      idleTimeoutMillis: 10_000,
-      max: 10,
+      idleTimeoutMillis: 5_000,
+      connectionTimeoutMillis: 10_000,
+      // O `prisma dev` local roda sobre um Postgres embarcado (PGlite) atrás de um proxy
+      // fino de conexão única — um pool grande contra ele é a causa mais provável das
+      // quedas "Connection terminated unexpectedly" observadas em uso real. Um pool
+      // pequeno é mais que suficiente para 4 usuários e reduz a pressão sobre o proxy.
+      max: 3,
     },
     {
       // Sem isto, o erro de uma conexão ociosa encerrada pelo servidor vira um evento

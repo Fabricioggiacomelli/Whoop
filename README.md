@@ -24,17 +24,30 @@ Next.js (App Router) + TypeScript + Tailwind + shadcn/ui · Prisma + PostgreSQL 
 
 ## Rodando localmente
 
+Use um PostgreSQL de verdade — local (instalado nativamente ou via Docker) ou uma branch de
+dev do Neon. **Não use `npx prisma dev`** (o Postgres embarcado do Prisma, PGlite atrás de um
+proxy fino): em teste real ele derrubou conexões sob uso sustentado ("Connection terminated
+unexpectedly"), inadequado para navegar no app por mais que alguns comandos rápidos de
+migration/seed.
+
 ```bash
 npm install
 cp .env.example .env   # preencha DATABASE_URL, AUTH_SECRET, TOKEN_ENCRYPTION_KEY
 
-# banco local de desenvolvimento (Postgres embarcado do Prisma — não precisa Docker/Neon):
-npx prisma dev -d
+# Windows sem Docker: instale localmente via winget (uma vez só)
+winget install --id PostgreSQL.PostgreSQL.17 --source winget --silent \
+  --accept-package-agreements --accept-source-agreements \
+  --override "--mode unattended --unattendedmodeui minimal --superpassword postgres --serverport 5432"
 
-npx prisma migrate dev
-npm run seed            # cria admin + 4 atletas fictícios com 90 dias de dados simulados
+# crie o banco do projeto
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -h localhost -p 5432 -U postgres -c "CREATE DATABASE apex4;"
 
-npm run dev             # http://localhost:3000
+# DATABASE_URL no .env: postgresql://postgres:postgres@localhost:5432/apex4?schema=public
+
+npx prisma migrate deploy   # ou "migrate dev" se for alterar o schema
+npm run seed                # cria admin + 4 atletas fictícios com 90 dias de dados simulados
+
+npm run dev                 # http://localhost:3000
 ```
 
 O `npm run seed` cria a conta admin usando `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` (default:
