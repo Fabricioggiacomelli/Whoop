@@ -10,6 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "seed": "tsx prisma/seed.ts",
+    "backfill-scores": "tsx prisma/backfill-scores.ts",
+    "recompute-rankings": "tsx prisma/recompute-rankings.ts",
+    "generate-roasts": "tsx prisma/generate-roasts-and-achievements.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"
   },
