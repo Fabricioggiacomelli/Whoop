@@ -1,5 +1,5 @@
-const STATIC_CACHE = "apex4-static-v1";
-const STATIC_ASSETS = ["/icon.svg", "/icon-192.png", "/icon-512.png", "/manifest.webmanifest"];
+const STATIC_CACHE = "apex4-static-v2";
+const STATIC_ASSETS = ["/icon-192.png", "/icon-512.png", "/apple-touch-icon.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(STATIC_CACHE).then((cache) => cache.addAll(STATIC_ASSETS)));
