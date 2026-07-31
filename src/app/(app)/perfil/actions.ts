@@ -7,6 +7,7 @@ import { db } from "@/server/db";
 import { requireUser } from "@/server/services/auth-guard";
 import { signOut } from "@/server/auth";
 import { revokeConnection } from "@/server/whoop/whoop.auth";
+import { hashPassword, verifyPassword } from "@/lib/password";
 
 export type ProfileState = { error: string | null; success?: boolean };
 
@@ -116,6 +117,52 @@ export async function disconnectWhoopAction() {
 export async function signOutAction() {
   "use server";
   await signOut({ redirectTo: "/login" });
+}
+
+export type ChangePasswordState = { error: string | null; success?: boolean };
+
+const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, "Informe sua senha atual."),
+    newPassword: z.string().min(8, "A nova senha precisa ter ao menos 8 caracteres."),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "As senhas não coincidem.",
+    path: ["confirmPassword"],
+  });
+
+export async function changePasswordAction(
+  _prevState: ChangePasswordState,
+  formData: FormData,
+): Promise<ChangePasswordState> {
+  const user = await requireUser();
+
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: formData.get("currentPassword"),
+    newPassword: formData.get("newPassword"),
+    confirmPassword: formData.get("confirmPassword"),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const dbUser = await db.user.findUniqueOrThrow({ where: { id: user.id } });
+  const isValid = await verifyPassword(dbUser.passwordHash, parsed.data.currentPassword);
+  if (!isValid) {
+    return { error: "Senha atual incorreta." };
+  }
+
+  const passwordHash = await hashPassword(parsed.data.newPassword);
+  await db.user.update({ where: { id: user.id }, data: { passwordHash } });
+
+  await db.auditLog.create({
+    data: { actorId: user.id, action: "user.password_changed", targetType: "User", targetId: user.id },
+  });
+
+  revalidatePath("/perfil");
+  return { error: null, success: true };
 }
 
 const RECOVERY_MODE_TYPES = ["INJURED", "SICK", "GENERAL_RECOVERY"] as const;

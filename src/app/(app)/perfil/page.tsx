@@ -12,6 +12,7 @@ import { getActiveRecoveryMode, getRecoveryModeHistory } from "@/server/services
 import { ProfileForm } from "./profile-form";
 import { RecoveryModeForm } from "./recovery-mode-form";
 import { RecoveryModeActiveControls } from "./recovery-mode-active-controls";
+import { ChangePasswordForm } from "./change-password-form";
 import {
   disconnectWhoopAction,
   mockConnectWhoopAction,
@@ -216,6 +217,15 @@ export default async function PerfilPage({
               ))}
             </div>
           ) : null}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Segurança</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ChangePasswordForm />
         </CardContent>
       </Card>
 
