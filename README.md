@@ -46,6 +46,9 @@ winget install --id PostgreSQL.PostgreSQL.17 --source winget --silent \
 
 npx prisma migrate deploy   # ou "migrate dev" se for alterar o schema
 npm run seed                # cria admin + 4 atletas fictícios com 90 dias de dados simulados
+npm run backfill-scores     # roda a engine de pontuação sobre os 90 dias
+npm run recompute-rankings  # materializa os rankings diário/semanal/mensal/geral
+npm run generate-roasts     # gera provocações e avalia conquistas
 
 npm run dev                 # http://localhost:3000
 ```
@@ -63,15 +66,19 @@ npm run build        # build de produção
 npm run lint         # ESLint
 npm run typecheck    # tsc --noEmit
 npm run test         # Vitest
-npm run seed         # popular banco com dados de demonstração
-npx prisma studio    # inspecionar o banco
+npm run seed               # popular banco com dados de demonstração
+npm run backfill-scores    # calcular DailyScore para todo o histórico fechado
+npm run recompute-rankings # materializar RankingSnapshot (diário/semanal/mensal/geral)
+npm run generate-roasts    # gerar provocações + avaliar conquistas
+npx prisma studio          # inspecionar o banco
 ```
 
 ## Status
 
-Fase 1 (Fundação) concluída — ver [`ROADMAP.md`](./ROADMAP.md) para o que vem a seguir
-(Fase 2: MVP com dados simulados — rankings, Journal, metas, provocações, conquistas, modo
-telão).
+Fase 1 (Fundação) e Fase 2 (MVP com dados simulados) concluídas — engine de pontuação real,
+rankings, Journal, Metas, Modo Recuperação, provocações, conquistas, gráficos de evolução e
+modo telão, todos rodando sobre os 90 dias simulados dos 4 atletas. Ver
+[`ROADMAP.md`](./ROADMAP.md) para o que vem a seguir (Fase 3: integração real com a WHOOP).
 
 Modo mock ativo por padrão (`WHOOP_MODE=mock`): a conexão WHOOP no onboarding/perfil simula
 o fluxo sem exigir credenciais reais, até a Fase 3.

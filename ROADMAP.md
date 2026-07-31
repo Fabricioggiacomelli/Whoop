@@ -19,16 +19,34 @@ seleção conforme o trabalho avança.
 
 ## Fase 2 — MVP com dados simulados
 
-- [ ] Home (nota atual, posição, Recovery/Sleep/Strain, sequência, provocação do dia)
-- [ ] Ranking diário/semanal/mensal/geral (`RankingSnapshot`)
-- [ ] Detalhe do cálculo (`/ranking/[date]/score`) usando dados simulados
-- [ ] Journal (fluxo de cartões, hábitos da seção 18)
-- [ ] Metas (criação, sugestão, aprovação, ciclo de 14 dias)
-- [ ] Modo recuperação (ativação com data de término, adaptação de metas)
-- [ ] Provocações determinísticas (templates, seção 21)
-- [ ] Conquistas (catálogo + concessão, seção 22)
-- [ ] Gráficos de evolução (Recharts: 7/14/30/90/desde o início)
-- [ ] Modo telão (`/display`, 7 telas em carrossel, seção 24)
+- [x] Engine de pontuação real (`src/server/scoring/*`): baseline por janela móvel, 6
+      scorers, OvertrainingPenalty, MissingDataPenalty, RecoveryModeAdjustment — rodando
+      sobre os 90 dias simulados dos 4 atletas (`npm run backfill-scores`)
+- [x] Home (nota atual, posição, Recovery/Sleep/Strain, faixa recomendada, aviso de
+      overtraining, sequência, progresso semanal, provocação do dia, conquistas recentes)
+- [x] Ranking diário/semanal/mensal/geral (`RankingSnapshot`, `npm run recompute-rankings`)
+- [x] Detalhe do cálculo (`/ranking/[date]/score`) usando dados simulados
+- [x] Journal (fluxo de cartões, hábitos da seção 18, histórico)
+- [x] Metas (criação, sugestão automática a partir da baseline real, aprovação com edição
+      inline, rejeição, pausar/retomar/concluir/encerrar, progresso do ciclo de 14 dias)
+- [x] Modo recuperação (ativação com data de término obrigatória, extensão, encerramento
+      automático por data, ajuste real na engine — Strain reduzido, consistência adaptada)
+- [x] Provocações determinísticas (`roast.service.ts`, `npm run generate-roasts`)
+- [x] Conquistas (catálogo de 19 badges do brief + avaliação sobre o histórico, página
+      Categorias com campeão por categoria e títulos de grupo)
+- [x] Gráficos de evolução (Recharts: 7/14/30/90/desde o início, 9 métricas)
+- [x] Modo telão (`/display`, 7 telas em carrossel, atualização via polling, auto-hide de
+      controles, teclado/toque, tela cheia)
+
+Observação de calibração: durante o backfill, a faixa recomendada de Strain e a detecção
+de excesso repetido usavam inicialmente uma média que incluía dias de descanso (Strain=0),
+diluindo o teto e disparando a penalidade de overtraining quase sempre. Corrigido para usar
+a intensidade média só dos dias de treino — o arquétipo "overtrainer" do seed passou a ter,
+corretamente, a menor pontuação média do grupo. Pontuação negativa por categoria já ocorre
+no dataset atual (ex: Hábitos chegou a -4,8 num dia); o total do dia ainda não ficou
+negativo nos 90 dias simulados porque as demais categorias compensam — o mecanismo (sem
+piso em lugar nenhum do código) está correto e será mais visível com dados reais ou
+arquétipos mais extremos.
 
 ## Fase 3 — Integração WHOOP
 
@@ -74,7 +92,7 @@ seleção conforme o trabalho avança.
 | 6 | Calcular nota diária | 2 (simulado) / 4 (real) |
 | 7 | Mostrar cálculo completo | 2 |
 | 8–11 | Rankings diário/semanal/mensal/geral | 2 |
-| 12 | Pontuação negativa | 2 |
+| 12 | Pontuação negativa | 2 (mecanismo sem piso, comprovado a nível de categoria; total do dia ainda não ficou negativo neste dataset) |
 | 13 | Mostrar overtraining | 2 |
 | 14 | Premiar descanso inteligente | 2 |
 | 15 | Modo recuperação com data final | 2 |
