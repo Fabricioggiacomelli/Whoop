@@ -61,24 +61,28 @@ senha `Apex4Demo!2026`).
 ## Scripts
 
 ```bash
-npm run dev          # servidor de desenvolvimento
-npm run build        # build de produção
-npm run lint         # ESLint
-npm run typecheck    # tsc --noEmit
-npm run test         # Vitest
-npm run seed               # popular banco com dados de demonstração
-npm run backfill-scores    # calcular DailyScore para todo o histórico fechado
-npm run recompute-rankings # materializar RankingSnapshot (diário/semanal/mensal/geral)
-npm run generate-roasts    # gerar provocações + avaliar conquistas
-npx prisma studio          # inspecionar o banco
+npm run dev                # servidor de desenvolvimento
+npm run build               # build de produção
+npm run lint                # ESLint
+npm run typecheck           # tsc --noEmit
+npm run test                # Vitest
+npm run seed                # popular banco com dados de demonstração
+npm run backfill-scores     # calcular DailyScore para todo o histórico fechado
+npm run recompute-rankings  # materializar RankingSnapshot (diário/semanal/mensal/geral)
+npm run generate-roasts     # gerar provocações + avaliar conquistas
+npx prisma studio           # inspecionar o banco
 ```
 
 ## Status
 
-Fase 1 (Fundação) e Fase 2 (MVP com dados simulados) concluídas — engine de pontuação real,
-rankings, Journal, Metas, Modo Recuperação, provocações, conquistas, gráficos de evolução e
-modo telão, todos rodando sobre os 90 dias simulados dos 4 atletas. Ver
-[`ROADMAP.md`](./ROADMAP.md) para o que vem a seguir (Fase 3: integração real com a WHOOP).
+Fase 1 (Fundação), Fase 2 (MVP com dados simulados) e Fase 3 (Integração WHOOP) concluídas.
+Ver [`ROADMAP.md`](./ROADMAP.md) para o detalhe completo e o que vem a seguir (Fase 4:
+engine de pontuação sobre dados reais, incremental).
 
-Modo mock ativo por padrão (`WHOOP_MODE=mock`): a conexão WHOOP no onboarding/perfil simula
-o fluxo sem exigir credenciais reais, até a Fase 3.
+**WHOOP**: `WHOOP_MODE=mock` (default) simula a conexão sem credenciais reais — é assim que
+o app é testado hoje, incluindo o pipeline completo de sync/import/normalização/fechamento de
+dia. `WHOOP_MODE=live` ativa o fluxo real (OAuth, sync, webhooks) contra
+`api.prod.whoop.com` — implementado e testado com fixtures que espelham a doc oficial, mas
+ainda não exercitado com um app real no WHOOP Developer Dashboard. Para ativar: preencha
+`WHOOP_CLIENT_ID`, `WHOOP_CLIENT_SECRET`, `WHOOP_REDIRECT_URI` e `WHOOP_WEBHOOK_SECRET` no
+`.env` e mude `WHOOP_MODE` para `live`.

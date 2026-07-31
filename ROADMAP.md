@@ -50,14 +50,28 @@ arquétipos mais extremos.
 
 ## Fase 3 — Integração WHOOP
 
-- [ ] Confirmar contra documentação oficial: endpoints, scopes exatos, formato de payload,
-      suporte a assinatura de webhook
-- [ ] OAuth real (`WhoopAuthService`) substituindo o mock
-- [ ] `WhoopSyncService` + `WhoopHistoricalImporter` contra API real
-- [ ] `WhoopWebhookService` + endpoint público validado
-- [ ] Job de reconciliação diária
-- [ ] Estados de conexão completos na UI (Perfil/Home)
-- [ ] Tratamento de erro de auth/rate limit end-to-end
+- [x] Confirmar contra documentação oficial: endpoints, scopes exatos, formato de payload,
+      suporte a assinatura de webhook (ver WHOOP_INTEGRATION.md §1)
+- [x] OAuth real (`WhoopAuthService`) — `state` assinado (HMAC), troca de code, refresh com
+      lock via Redis, revoke, tokens sempre criptografados (AES-256-GCM)
+- [x] `WhoopSyncService` + `WhoopHistoricalImporter` com paginação real (cursor por recurso,
+      `limit=25`, retoma de onde parou)
+- [x] `WhoopWebhookService` + endpoint público validado (assinatura HMAC confirmada,
+      idempotência por `trace_id`, sempre rebusca o recurso completo)
+- [x] Job de reconciliação diária (`/api/cron/reconcile` + `vercel.json`) — cobre `cycle` e
+      `body_measurement`, que não têm webhook
+- [x] Estados de conexão completos na UI (Perfil) com mensagens de sucesso/erro do callback
+- [x] Tratamento de erro de auth/rate limit end-to-end (401 sem assinatura/sem bearer,
+      `RECONNECT_REQUIRED` em falha de refresh, rate limit nas rotas OAuth)
+
+**Ainda não testado contra credenciais reais** — o usuário não tem app no WHOOP Developer
+Dashboard ainda. Verificado o que dava para verificar sem isso: pipeline completo
+(import histórico → normalizer → fechamento de dia → engine de pontuação → idempotência) em
+`WHOOP_MODE=mock` contra o Postgres real; testes unitários de assinatura de webhook, `state`
+OAuth e conversões do normalizer (ms→min, soma de `sleep_needed`) usando fixtures no formato
+exato da doc oficial. Quando houver credenciais: preencher `WHOOP_CLIENT_ID`/`_SECRET`/
+`_REDIRECT_URI`/`WHOOP_WEBHOOK_SECRET`, setar `WHOOP_MODE=live` e testar o handshake real —
+o código não deveria precisar mudar fora de validar os schemas de resposta.
 
 ## Fase 4 — Engine real
 

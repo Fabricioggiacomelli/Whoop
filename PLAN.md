@@ -80,12 +80,15 @@ Decisões tomadas:
 Suposições assumidas por não haver como validar sem credenciais reais da WHOOP ou decisão do
 grupo:
 
-- A API da WHOOP v2 expõe os recursos: `cycle`, `recovery`, `sleep`, `workout`,
-  `body_measurement`, com OAuth2 Authorization Code + refresh token e webhooks por recurso
-  (`cycle.updated`, `recovery.updated`, `sleep.updated`, `workout.updated`). **Isso será
-  revalidado contra a documentação oficial e a resposta real da API antes da Fase 3** — o
-  brief exige isso explicitamente (seção 6). Até lá, `WhoopNormalizer` trabalha sobre tipos
-  próprios e mocks, isolando o resto do sistema do formato exato.
+- ~~A API da WHOOP v2 expõe os recursos: `cycle`, `recovery`, `sleep`, `workout`,
+  `body_measurement`... isso será revalidado antes da Fase 3~~ **Validado na Fase 3** contra
+  a documentação oficial (developer.whoop.com) — ver `WHOOP_INTEGRATION.md §1`. Correção
+  importante: **não existe webhook de `cycle` nem de `body_measurement`** (só
+  recovery/sleep/workout `.updated`/`.deleted`); esses dois recursos dependem só de
+  importação histórica + reconciliação por polling. Ainda não testado contra credenciais
+  reais (o usuário não tem uma conta de desenvolvedor WHOOP ainda) — o código está pronto
+  para `WHOOP_MODE=live`, mas só foi exercitado em `WHOOP_MODE=mock` e com fixtures que
+  espelham os schemas documentados.
 - WHOOP não fornece "meta de Strain" via API da mesma forma que exibe no app — assumimos que
   a recomendação de Strain é 100% calculada pelo APEX 4 (`StrainRecommendation`), nunca lida
   da WHOOP.

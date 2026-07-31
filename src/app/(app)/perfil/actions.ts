@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { requireUser } from "@/server/services/auth-guard";
 import { signOut } from "@/server/auth";
+import { revokeConnection } from "@/server/whoop/whoop.auth";
 
 export type ProfileState = { error: string | null; success?: boolean };
 
@@ -102,6 +103,13 @@ export async function mockDisconnectWhoopAction() {
     data: { status: "NOT_CONNECTED", disconnectedAt: new Date() },
   });
 
+  revalidatePath("/perfil");
+}
+
+/** WHOOP_MODE=live: revoga de verdade via `DELETE /developer/v2/user/access`. */
+export async function disconnectWhoopAction() {
+  const user = await requireUser();
+  await revokeConnection(user.id);
   revalidatePath("/perfil");
 }
 

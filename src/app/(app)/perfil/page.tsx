@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 
 import { db } from "@/server/db";
@@ -11,7 +12,19 @@ import { getActiveRecoveryMode, getRecoveryModeHistory } from "@/server/services
 import { ProfileForm } from "./profile-form";
 import { RecoveryModeForm } from "./recovery-mode-form";
 import { RecoveryModeActiveControls } from "./recovery-mode-active-controls";
-import { mockConnectWhoopAction, mockDisconnectWhoopAction, signOutAction } from "./actions";
+import {
+  disconnectWhoopAction,
+  mockConnectWhoopAction,
+  mockDisconnectWhoopAction,
+  signOutAction,
+} from "./actions";
+
+const WHOOP_ERROR_LABEL: Record<string, string> = {
+  mock_mode: "WHOOP_MODE ainda é mock — configure as credenciais para conectar de verdade.",
+  config: "Configuração da WHOOP incompleta (client_id/secret/redirect_uri).",
+  invalid_state: "Sessão de autorização inválida ou expirada — tente novamente.",
+  exchange_failed: "Não foi possível concluir a conexão com a WHOOP.",
+};
 
 const RECOVERY_TYPE_LABEL: Record<string, string> = {
   INJURED: "Lesionado",
@@ -49,8 +62,13 @@ function toDateInputValue(date: Date | null | undefined) {
   return date ? date.toISOString().slice(0, 10) : "";
 }
 
-export default async function PerfilPage() {
+export default async function PerfilPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ whoop_connected?: string; whoop_error?: string }>;
+}) {
   const sessionUser = await requireUser();
+  const { whoop_connected: whoopConnected, whoop_error: whoopError } = await searchParams;
 
   const user = await db.user.findUniqueOrThrow({
     where: { id: sessionUser.id },
@@ -59,6 +77,7 @@ export default async function PerfilPage() {
 
   const connectionStatus = user.whoopConnection?.status ?? "NOT_CONNECTED";
   const isConnected = connectionStatus !== "NOT_CONNECTED";
+  const isLive = (process.env.WHOOP_MODE ?? "mock") === "live";
 
   const activeRecoveryMode = await getActiveRecoveryMode(user.id);
   const recoveryHistory = await getRecoveryModeHistory(user.id);
@@ -105,14 +124,38 @@ export default async function PerfilPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <p className="text-xs text-apex-text-tertiary">
-            Modo mock ativo (WHOOP_MODE=mock) — nenhuma credencial real é usada até a Fase 3.
+            {isLive
+              ? "WHOOP_MODE=live — conexão real via OAuth."
+              : "Modo mock ativo (WHOOP_MODE=mock) — nenhuma credencial real é usada ainda."}
           </p>
+
+          {whoopConnected ? (
+            <p className="text-xs text-apex-recovery-green">WHOOP conectada com sucesso.</p>
+          ) : null}
+          {whoopError ? (
+            <p className="text-xs text-apex-recovery-red">
+              {WHOOP_ERROR_LABEL[whoopError] ?? "Não foi possível conectar a WHOOP."}
+            </p>
+          ) : null}
+
           {isConnected ? (
-            <form action={mockDisconnectWhoopAction}>
-              <Button type="submit" variant="outline" size="sm">
-                Desconectar
-              </Button>
-            </form>
+            isLive ? (
+              <form action={disconnectWhoopAction}>
+                <Button type="submit" variant="outline" size="sm">
+                  Desconectar
+                </Button>
+              </form>
+            ) : (
+              <form action={mockDisconnectWhoopAction}>
+                <Button type="submit" variant="outline" size="sm">
+                  Desconectar
+                </Button>
+              </form>
+            )
+          ) : isLive ? (
+            <Button asChild variant="accent" size="sm">
+              <Link href="/api/whoop/oauth/start">Conectar WHOOP</Link>
+            </Button>
           ) : (
             <form action={mockConnectWhoopAction}>
               <Button type="submit" variant="accent" size="sm">

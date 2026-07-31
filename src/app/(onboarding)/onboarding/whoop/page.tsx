@@ -10,6 +10,8 @@ export const metadata: Metadata = {
 };
 
 export default function OnboardingWhoopPage() {
+  const isLive = (process.env.WHOOP_MODE ?? "mock") === "live";
+
   return (
     <div className="mx-auto flex min-h-full w-full max-w-md flex-1 flex-col justify-center px-6 py-12">
       <p className="text-xs font-medium uppercase tracking-wide text-apex-text-tertiary">
@@ -21,14 +23,25 @@ export default function OnboardingWhoopPage() {
         pontua — pode fazer isso agora ou depois, pelo Perfil.
       </p>
 
-      <form action={mockConnectWhoopAction} className="mt-8 flex flex-col gap-3">
-        <Button type="submit" variant="accent" size="lg">
-          Conectar WHOOP
-        </Button>
-        <Button asChild variant="ghost" size="lg">
-          <Link href="/home">Pular por agora</Link>
-        </Button>
-      </form>
+      {isLive ? (
+        <div className="mt-8 flex flex-col gap-3">
+          <Button asChild variant="accent" size="lg">
+            <Link href="/api/whoop/oauth/start">Conectar WHOOP</Link>
+          </Button>
+          <Button asChild variant="ghost" size="lg">
+            <Link href="/home">Pular por agora</Link>
+          </Button>
+        </div>
+      ) : (
+        <form action={mockConnectWhoopAction} className="mt-8 flex flex-col gap-3">
+          <Button type="submit" variant="accent" size="lg">
+            Conectar WHOOP
+          </Button>
+          <Button asChild variant="ghost" size="lg">
+            <Link href="/home">Pular por agora</Link>
+          </Button>
+        </form>
+      )}
     </div>
   );
 }

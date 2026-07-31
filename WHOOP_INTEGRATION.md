@@ -1,24 +1,58 @@
 # WHOOP_INTEGRATION.md
 
-## 1. Escopo de dados desejado
+## 1. API real — confirmado contra a documentação oficial (developer.whoop.com)
 
-Perfil, Recovery, Ciclos, Treinos, Sono, Medidas corporais, acesso offline (refresh token).
-**Os nomes exatos de scope/endpoint serão confirmados contra a documentação oficial da WHOOP
-Developer Platform antes da Fase 3** (`PLAN.md §4` registra isso como suposição, não fato).
-Até lá, todo o sistema é desenvolvido contra `WhoopClient`/`WhoopNormalizer` com fixtures
-mockadas (`WHOOP_MODE=mock`), então trocar o mock pelo real não deve exigir mudanças fora de
-`src/server/whoop/*`.
+A suposição do `PLAN.md §4` foi validada na Fase 3. Registro aqui os fatos confirmados —
+`WhoopClient`/`WhoopNormalizer` (`src/server/whoop/*`) são a única camada que os conhece.
+
+- **Host da API**: `https://api.prod.whoop.com`
+- **Authorize**: `https://api.prod.whoop.com/oauth/oauth2/auth`
+- **Token**: `https://api.prod.whoop.com/oauth/oauth2/token`
+- **Revoke**: `DELETE /developer/v2/user/access`
+- **Scopes confirmados**: `read:profile`, `read:body_measurement`, `read:cycles`,
+  `read:sleep`, `read:recovery`, `read:workout`, `offline` (obrigatório para refresh token).
+  Não existe scope de escrita — a API é somente leitura.
+- **Fluxo OAuth confidencial**: Authorization Code padrão (RFC 6749) com `client_id` +
+  `client_secret`. A documentação oficial **não menciona PKCE/`code_challenge`** — só
+  `state` para CSRF. Não implementar PKCE especulativamente; se a WHOOP passar a exigir,
+  é uma mudança isolada em `whoop.auth.ts`.
+- **Endpoints** (todos `GET`, todos sob `/developer/v2/`, paginados):
+
+  | Recurso | Path | Scope |
+  |---|---|---|
+  | Ciclos | `/cycle` (+ `/{id}`, `/{id}/recovery`, `/{id}/sleep`) | `read:cycles` |
+  | Recovery | `/recovery` | `read:recovery` |
+  | Sono | `/activity/sleep` (+ `/{id}`) | `read:sleep` |
+  | Treino | `/activity/workout` (+ `/{id}`) | `read:workout` |
+  | Perfil | `/user/profile/basic` | `read:profile` |
+  | Medidas corporais | `/user/measurement/body` | `read:body_measurement` |
+
+- **Paginação**: query params `limit` (máx. **25**, default 10), `start`/`end` (ISO 8601,
+  `start` inclusivo, `end` exclusivo), `nextToken` (da resposta anterior). Resposta:
+  `{ records: [...], next_token }`.
+- **Unidades**: durações vêm em **milissegundos** (`total_rem_sleep_time_milli`,
+  `zone_zero_milli` etc.) — `WhoopNormalizer` converte para minutos ao gravar no nosso
+  schema. IDs de `cycle` e `user` são inteiros; IDs de `sleep`/`workout` são UUID (v2).
+- **`score_state`**: cada recurso vem com um campo `score_state` (`SCORED` /
+  `PENDING_SCORE` / `UNSCORABLE`, conforme a doc) — é esse campo, não um "processed"
+  genérico, que decide se um dado está pronto para pontuar (seção 6).
+- **`sleep_needed`**: a WHOOP não devolve um único "sleepNeedMinutes" — devolve
+  `baseline_milli + need_from_sleep_debt_milli + need_from_recent_strain_milli +
+  need_from_recent_nap_milli`. O normalizer soma os quatro.
+- Fontes: [OAuth 2.0](https://developer.whoop.com/docs/developing/oauth/),
+  [API Reference](https://developer.whoop.com/api/),
+  [Webhooks](https://developer.whoop.com/docs/developing/webhooks/).
 
 ## 2. Fluxo OAuth
 
 ```
 Usuário (Perfil) → clica "Conectar WHOOP"
   → GET /api/whoop/oauth/start
-      gera `state` (assinado, TTL curto) + `code_verifier` PKCE, salva em cookie httpOnly
-      redireciona para authorize URL da WHOOP com scopes + state + code_challenge
+      gera `state` assinado (HMAC, TTL curto), salva em cookie httpOnly
+      redireciona para authorize URL da WHOOP com scopes + state
   → usuário autoriza na WHOOP
   → WHOOP redireciona para /api/whoop/oauth/callback?code=...&state=...
-      valida `state` (CSRF) contra o cookie
+      valida `state` (CSRF) contra o cookie, em tempo constante
       troca `code` por access_token/refresh_token (WhoopAuthService.exchangeCode)
       criptografa e salva em WhoopToken
       cria/atualiza WhoopConnection (status = CONNECTED)
@@ -26,10 +60,17 @@ Usuário (Perfil) → clica "Conectar WHOOP"
   → redireciona usuário para /perfil com status "importando histórico"
 ```
 
-Proteções obrigatórias: `state` assinado com segredo do servidor + comparação de tempo
-constante; `code_verifier`/PKCE; cookie do `state` com `SameSite=Lax`, `Secure`, `HttpOnly`;
-validação de `redirect_uri` exata (allowlist); nunca aceitar callback sem `state` válido;
-rate limit no endpoint de callback e no de start.
+Proteções obrigatórias: `state` assinado com segredo do servidor + comparação em tempo
+constante; cookie do `state` com `SameSite=Lax`, `Secure`, `HttpOnly`; validação de
+`redirect_uri` exata (allowlist, deve bater com o valor cadastrado no WHOOP Developer
+Dashboard); nunca aceitar callback sem `state` válido; rate limit no endpoint de callback e
+no de start.
+
+`WHOOP_MODE=mock` (default em desenvolvimento, sem credenciais reais ainda) faz o botão
+"Conectar WHOOP" pular esse fluxo inteiro e chamar uma Server Action que simula uma conexão
+bem-sucedida — ver `mockConnectWhoopAction` no Perfil/Onboarding. `WHOOP_MODE=live` ativa as
+rotas reais descritas acima; exige `WHOOP_CLIENT_ID`/`WHOOP_CLIENT_SECRET`/
+`WHOOP_REDIRECT_URI` preenchidos.
 
 ## 3. Armazenamento e ciclo de vida de tokens
 
@@ -43,8 +84,9 @@ rate limit no endpoint de callback e no de start.
   usuário nos dias afetados (`DailyPerformance.status = AWAITING_SYNC` até reconectar).
 - **Reconexão**: refaz o fluxo OAuth; `WhoopSyncCursor` existente é preservado — a
   importação retoma de onde parou, não duplica.
-- **Revogação pelo usuário**: botão em Perfil chama endpoint de revoke da WHOOP (se
-  disponível) e limpa `WhoopToken` local; `WhoopConnection.status = NOT_CONNECTED`.
+- **Revogação pelo usuário**: botão em Perfil chama `DELETE /developer/v2/user/access`
+  (confirmado na doc oficial) e limpa `WhoopToken` local; `WhoopConnection.status =
+  NOT_CONNECTED`.
 - Toda operação de auth grava um `AuditLog` (sem dados sensíveis) e um log estruturado.
 
 ## 4. Importação histórica
@@ -69,25 +111,40 @@ invocação processa um lote e se re-enfileira se houver mais.
 
 ## 5. Sincronização contínua
 
-- **Webhooks** (`POST /api/webhooks/whoop`): valida autenticidade quando a WHOOP suportar
-  (assinatura/segredo compartilhado — a confirmar), salva o evento bruto
-  (`WhoopWebhookEvent`, `externalEventId` unique → idempotência garantida no banco mesmo se o
-  provedor reentregar), responde 200 rápido, e **enfileira** o processamento real (nunca
-  processa pesado dentro do handler do webhook).
-- Processamento enfileirado: busca o objeto completo via `WhoopClient` (nunca confia só no
-  payload do webhook), normaliza, salva, recalcula o `DailyPerformance`/`DailyScore` do dia
-  afetado, recalcula `RankingSnapshot`, avalia `Achievement`/`Roast` novos, loga.
-- **Reconciliação diária** (cron): para cada usuário conectado, compara um resumo local
-  (contagem/hash por dia) contra a API; diferenças disparam re-sync pontual. Cobre lacunas de
-  webhooks perdidos.
+- **Webhooks** (`POST /api/webhooks/whoop`) — confirmado contra a doc oficial:
+  - Assinatura: headers `X-WHOOP-Signature` e `X-WHOOP-Signature-Timestamp` (ms desde
+    epoch). Verificação: `base64(HMAC_SHA256(timestamp + rawBody, WHOOP_WEBHOOK_SECRET))`
+    deve bater com o header, comparado em tempo constante. **Precisa do corpo bruto** — a
+    Route Handler lê o body como texto antes de fazer `JSON.parse`, nunca depois.
+  - Payload: `{ user_id, id, type, trace_id }` — `trace_id` identifica duplicatas.
+  - **Só existem 6 tipos de evento**: `recovery.updated`, `recovery.deleted`,
+    `workout.updated`, `workout.deleted`, `sleep.updated`, `sleep.deleted`. **Não há webhook
+    de `cycle` nem de `body_measurement`** — esses dois só chegam via importação
+    histórica/reconciliação por polling, nunca por push. Criação também chega como evento
+    `.updated` (não existe "created").
+  - Para eventos de `recovery` em v2, o `id` do payload é o **UUID do sleep**, não um id de
+    recovery próprio — documentado assim pela WHOOP, tratado explicitamente no
+    `WhoopWebhookService`.
+  - WHOOP reentrega até 5x em ~1h se a resposta não for 2xx — por isso idempotência por
+    `trace_id` é obrigatória (`WhoopWebhookEvent.externalEventId`), e a Route Handler
+    responde rápido (< poucos segundos) antes de processar.
+  - Payload do webhook **nunca é gravado diretamente como fato** — sempre dispara re-busca
+    autenticada do objeto completo via `WhoopClient` antes de normalizar/salvar.
+- **Reconciliação diária** (cron `/api/cron/reconcile`, protegida por `CRON_SECRET`): para
+  cada usuário conectado, refaz uma janela curta (últimos ~3 dias) de `cycle` e
+  `body_measurement` via polling — os únicos recursos sem webhook — e faz uma segunda
+  passada de `recovery`/`sleep`/`workout` para cobrir webhooks perdidos ou fora da janela
+  de retry.
 - Enquanto o sistema aguarda dado por falha técnica, o dia permanece em estado de espera
   (`AWAITING_SYNC`/`AWAITING_DATA`) — **nunca** penalizado nesse estado.
 
 ## 6. Conceito de dia competitivo — mapeamento técnico
 
-Um `DailyPerformance` fecha quando: (a) o `WhoopSleep` principal do ciclo está presente e
-processado; (b) o `WhoopRecovery` correspondente está presente; (c) demais dados necessários
-para a `DailyScore` daquele dia estão disponíveis. O fechamento é avaliado por um job
+Um `DailyPerformance` fecha quando: (a) o `WhoopSleep` principal do ciclo está presente **e**
+seu `score_state = "SCORED"`; (b) o `WhoopRecovery` correspondente está presente e também
+`SCORED`; (c) demais dados necessários para a `DailyScore` daquele dia estão disponíveis.
+`score_state` vem cru da API em `WhoopRawEvent`/campo próprio do normalizer — nunca inferido
+por "o registro existe, então está pronto". O fechamento é avaliado por um job
 (`close-days`) que roda periodicamente, não em um horário fixo de "meia-noite" — a rotina
 verifica ciclo a ciclo.
 
