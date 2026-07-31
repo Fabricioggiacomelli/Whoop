@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/*
+ * APEX 4 — tokens de design. Sempre escuro (não segue prefers-color-scheme): o produto é
+ * um cockpit de telemetria, não uma UI que se adapta ao SO. Ver ARCHITECTURE.md §5.
+ */
+:root {
+  --apex-bg: #05070a;
+  --apex-surface: #14181f;
+  --apex-surface-raised: #1b1f27;
+  --apex-border: #242933;
+  --apex-text-primary: #f5f6f8;
+  --apex-text-secondary: #8a8f99;
+  --apex-text-tertiary: #565c68;
+
+  --apex-recovery-green: #3ddc84;
+  --apex-recovery-yellow: #f5c542;
+  --apex-recovery-red: #ff5c5c;
+
+  --apex-accent: #4d7bff;
+
+  --background: var(--apex-bg);
+  --foreground: var(--apex-text-primary);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-apex-bg: var(--apex-bg);
+  --color-apex-surface: var(--apex-surface);
+  --color-apex-surface-raised: var(--apex-surface-raised);
+  --color-apex-border: var(--apex-border);
+  --color-apex-text-primary: var(--apex-text-primary);
+  --color-apex-text-secondary: var(--apex-text-secondary);
+  --color-apex-text-tertiary: var(--apex-text-tertiary);
+
+  --color-apex-recovery-green: var(--apex-recovery-green);
+  --color-apex-recovery-yellow: var(--apex-recovery-yellow);
+  --color-apex-recovery-red: var(--apex-recovery-red);
+
+  --color-apex-accent: var(--apex-accent);
+
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-geist-mono);
+}
+
+* {
+  border-color: var(--apex-border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* Números tabulares — telemetria não deve "dançar" horizontalmente ao atualizar. */
+.apex-numeric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

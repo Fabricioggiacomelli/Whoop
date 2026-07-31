@@ -1,0 +1,869 @@
+// APEX 4 — schema de banco de dados
+// Ver DATABASE.md para o mapa de leitura humana de cada entidade.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Identidade e acesso
+// ─────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  PARTICIPANT
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  role         Role       @default(PARTICIPANT)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  profile               Profile?
+  colorAssignment       UserColor?
+  sessions              Session[]
+  accounts              Account[]
+  invitesCreated        Invite[]               @relation("InviteCreatedBy")
+  invitesUsed           Invite?                @relation("InviteUsedBy")
+  whoopConnection       WhoopConnection?
+  whoopCycles           WhoopCycle[]
+  whoopRecoveries       WhoopRecovery[]
+  whoopSleeps           WhoopSleep[]
+  whoopWorkouts         WhoopWorkout[]
+  whoopBodyMeasures     WhoopBodyMeasurement[]
+  whoopSyncJobs         WhoopSyncJob[]
+  whoopSyncCursors      WhoopSyncCursor[]
+  whoopRawEvents        WhoopRawEvent[]
+  dailyPerformances     DailyPerformance[]
+  dailyScores           DailyScore[]
+  baselines             UserBaseline[]
+  strainRecommendations StrainRecommendation[]
+  journalEntries        JournalEntry[]
+  goals                 Goal[]
+  goalSuggestions       GoalSuggestion[]
+  recoveryModes         RecoveryMode[]
+  rankingSnapshots      RankingSnapshot[]
+  achievements          UserAchievement[]
+  roastsReceived        Roast[]
+  notifications         NotificationInternal[]
+  auditLogsAsActor      AuditLog[]
+
+  @@map("users")
+}
+
+/// Modelo padrão Auth.js — permite futuros providers OAuth próprios do APEX 4 (não confundir com WhoopConnection).
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+/// Sessões em banco (não JWT) — permite revogação instantânea pelo admin.
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Invite {
+  id          String    @id @default(uuid())
+  token       String    @unique
+  email       String
+  createdById String
+  usedById    String?   @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  createdBy User  @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  usedBy    User? @relation("InviteUsedBy", fields: [usedById], references: [id])
+
+  @@map("invites")
+}
+
+enum GoalCategory {
+  SLEEP
+  RECOVERY
+  STRAIN
+  HABITS
+  CONSISTENCY
+  OTHER
+}
+
+model Profile {
+  id           String        @id @default(uuid())
+  userId       String        @unique
+  displayName  String
+  nickname     String        @unique
+  avatarUrl    String?
+  bio          String?
+  birthDate    DateTime?
+  weightKg     Decimal?      @db.Decimal(5, 2)
+  heightCm     Decimal?      @db.Decimal(5, 2)
+  goalText     String?
+  goalCategory GoalCategory?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("profiles")
+}
+
+model UserColor {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  hex       String   @unique
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_colors")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Integração WHOOP
+// ─────────────────────────────────────────────────────────────────────────
+
+enum WhoopConnectionStatus {
+  NOT_CONNECTED
+  CONNECTED
+  IMPORTING_HISTORY
+  SYNCING
+  UP_TO_DATE
+  AWAITING_DATA
+  AUTH_ERROR
+  TEMP_ERROR
+  RECONNECT_REQUIRED
+}
+
+model WhoopConnection {
+  id             String                @id @default(uuid())
+  userId         String                @unique
+  whoopUserId    String?               @unique
+  status         WhoopConnectionStatus @default(NOT_CONNECTED)
+  scopesGranted  String[]              @default([])
+  lastSyncedAt   DateTime?
+  connectedAt    DateTime?
+  disconnectedAt DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token WhoopToken?
+
+  @@map("whoop_connections")
+}
+
+/// Tokens sempre criptografados em repouso (AES-256-GCM). Nunca lidos fora de src/server/whoop/*.
+model WhoopToken {
+  id              String    @id @default(uuid())
+  connectionId    String    @unique
+  accessTokenEnc  String
+  refreshTokenEnc String
+  expiresAt       DateTime
+  rotatedAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  connection WhoopConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@map("whoop_tokens")
+}
+
+enum WhoopEventSource {
+  SYNC
+  WEBHOOK
+  HISTORICAL
+}
+
+model WhoopRawEvent {
+  id        String           @id @default(uuid())
+  userId    String
+  resource  String
+  source    WhoopEventSource
+  payload   Json
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, resource])
+  @@map("whoop_raw_events")
+}
+
+enum WebhookProcessStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+model WhoopWebhookEvent {
+  id              String               @id @default(uuid())
+  externalEventId String               @unique
+  type            String
+  payload         Json
+  status          WebhookProcessStatus @default(RECEIVED)
+  receivedAt      DateTime             @default(now())
+  processedAt     DateTime?
+  error           String?
+
+  @@map("whoop_webhook_events")
+}
+
+enum SyncJobType {
+  HISTORICAL_IMPORT
+  WEBHOOK_PROCESS
+  RECONCILIATION
+  TOKEN_REFRESH
+}
+
+enum SyncJobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model WhoopSyncJob {
+  id         String        @id @default(uuid())
+  userId     String
+  type       SyncJobType
+  status     SyncJobStatus @default(PENDING)
+  attempts   Int           @default(0)
+  lastError  String?
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime      @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("whoop_sync_jobs")
+}
+
+model WhoopSyncCursor {
+  id              String    @id @default(uuid())
+  userId          String
+  resource        String
+  cursor          String?
+  lastCompletedAt DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resource])
+  @@map("whoop_sync_cursors")
+}
+
+model WhoopCycle {
+  id         String    @id @default(uuid())
+  userId     String
+  externalId String    @unique
+  startedAt  DateTime
+  endedAt    DateTime?
+  strain     Decimal?  @db.Decimal(4, 2)
+  raw        Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recovery WhoopRecovery?
+  sleep    WhoopSleep?
+
+  @@index([userId, startedAt])
+  @@map("whoop_cycles")
+}
+
+model WhoopRecovery {
+  id               String   @id @default(uuid())
+  userId           String
+  cycleId          String   @unique
+  externalId       String   @unique
+  recoveryScore    Decimal? @db.Decimal(5, 2)
+  hrvMs            Decimal? @db.Decimal(6, 2)
+  restingHeartRate Decimal? @db.Decimal(5, 2)
+  skinTempCelsius  Decimal? @db.Decimal(4, 2)
+  spo2Percentage   Decimal? @db.Decimal(5, 2)
+  raw              Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle WhoopCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("whoop_recoveries")
+}
+
+model WhoopSleep {
+  id                  String   @id @default(uuid())
+  userId              String
+  cycleId             String?  @unique
+  externalId          String   @unique
+  startedAt           DateTime
+  endedAt             DateTime
+  isNap               Boolean  @default(false)
+  sleepPerformancePct Decimal? @db.Decimal(5, 2)
+  sleepEfficiencyPct  Decimal? @db.Decimal(5, 2)
+  sleepNeedMinutes    Int?
+  timeInBedMinutes    Int?
+  remMinutes          Int?
+  deepMinutes         Int?
+  lightMinutes        Int?
+  awakeMinutes        Int?
+  disturbanceCount    Int?
+  sleepDebtMinutes    Int?
+  raw                 Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle WhoopCycle? @relation(fields: [cycleId], references: [id])
+
+  @@index([userId, startedAt])
+  @@map("whoop_sleeps")
+}
+
+model WhoopWorkout {
+  id               String   @id @default(uuid())
+  userId           String
+  externalId       String   @unique
+  sportName        String?
+  startedAt        DateTime
+  endedAt          DateTime
+  strain           Decimal? @db.Decimal(4, 2)
+  averageHeartRate Decimal? @db.Decimal(5, 2)
+  maxHeartRate     Decimal? @db.Decimal(5, 2)
+  kilojoules       Decimal? @db.Decimal(10, 2)
+  zoneDurations    Json?
+  raw              Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+  @@map("whoop_workouts")
+}
+
+model WhoopBodyMeasurement {
+  id           String   @id @default(uuid())
+  userId       String
+  externalId   String   @unique
+  measuredAt   DateTime
+  heightMeters Decimal? @db.Decimal(4, 2)
+  weightKg     Decimal? @db.Decimal(5, 2)
+  maxHeartRate Int?
+  raw          Json?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, measuredAt])
+  @@map("whoop_body_measurements")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Dia competitivo e pontuação
+// ─────────────────────────────────────────────────────────────────────────
+
+enum DailyPerformanceStatus {
+  IN_PROGRESS
+  AWAITING_SLEEP
+  AWAITING_RECOVERY
+  AWAITING_SYNC
+  CLOSED
+  REPROCESSED
+  INCOMPLETE_USER_FAULT
+  INCOMPLETE_TECH_FAULT
+}
+
+model DailyPerformance {
+  id              String                 @id @default(uuid())
+  userId          String
+  competitiveDate DateTime               @db.Date
+  cycleId         String?
+  journalEntryId  String?                @unique
+  status          DailyPerformanceStatus @default(IN_PROGRESS)
+  closedAt        DateTime?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journalEntry JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  dailyScores  DailyScore[]
+
+  @@unique([userId, competitiveDate])
+  @@map("daily_performances")
+}
+
+model UserBaseline {
+  id               String   @id @default(uuid())
+  userId           String
+  windowDays       Int
+  computedAt       DateTime @default(now())
+  avgSleepPerfPct  Decimal? @db.Decimal(5, 2)
+  avgHrvMs         Decimal? @db.Decimal(6, 2)
+  avgRestingHr     Decimal? @db.Decimal(5, 2)
+  avgRecoveryScore Decimal? @db.Decimal(5, 2)
+  avgStrain        Decimal? @db.Decimal(4, 2)
+  acuteLoad7d      Decimal? @db.Decimal(6, 2)
+  chronicLoad28d   Decimal? @db.Decimal(6, 2)
+  metadata         Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, computedAt])
+  @@map("user_baselines")
+}
+
+model ScoringVersion {
+  id            String   @id @default(uuid())
+  key           String   @unique // ex: "v1", "v1.1"
+  description   String?
+  effectiveFrom DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  rules       ScoringRule[]
+  dailyScores DailyScore[]
+
+  @@map("scoring_versions")
+}
+
+model ScoringRule {
+  id               String @id @default(uuid())
+  scoringVersionId String
+  key              String // ex: "strain.overage.tier2"
+  value            Json
+
+  scoringVersion ScoringVersion @relation(fields: [scoringVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([scoringVersionId, key])
+  @@map("scoring_rules")
+}
+
+enum DailyScoreStatus {
+  DRAFT
+  FINAL
+  REPROCESSED
+}
+
+model DailyScore {
+  id                 String           @id @default(uuid())
+  userId             String
+  dailyPerformanceId String
+  competitiveDate    DateTime         @db.Date
+  scoringVersionId   String
+  totalPoints        Decimal          @db.Decimal(6, 2)
+  status             DailyScoreStatus @default(FINAL)
+  calculatedAt       DateTime         @default(now())
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyPerformance DailyPerformance @relation(fields: [dailyPerformanceId], references: [id], onDelete: Cascade)
+  scoringVersion   ScoringVersion   @relation(fields: [scoringVersionId], references: [id])
+  components       ScoreComponent[]
+
+  @@unique([userId, competitiveDate, scoringVersionId])
+  @@index([competitiveDate])
+  @@map("daily_scores")
+}
+
+enum ScoreCategory {
+  SLEEP
+  RECOVERY
+  STRAIN
+  CONSISTENCY
+  EVOLUTION
+  HABITS
+}
+
+model ScoreComponent {
+  id                 String        @id @default(uuid())
+  dailyScoreId       String
+  category           ScoreCategory
+  pointsPossible     Decimal       @db.Decimal(5, 2)
+  pointsEarned       Decimal       @db.Decimal(5, 2)
+  inputValue         Json?
+  normalizedValue    Json?
+  metricUsed         String?
+  baselineComparison Json?
+  explanation        String?
+  recommendation     String?
+  ruleApplied        String?
+  calculatedAt       DateTime      @default(now())
+
+  dailyScore  DailyScore        @relation(fields: [dailyScoreId], references: [id], onDelete: Cascade)
+  adjustments ScoreAdjustment[]
+
+  @@unique([dailyScoreId, category])
+  @@map("score_components")
+}
+
+enum AdjustmentType {
+  BONUS
+  PENALTY
+}
+
+model ScoreAdjustment {
+  id               String         @id @default(uuid())
+  scoreComponentId String
+  type             AdjustmentType
+  reason           String
+  points           Decimal        @db.Decimal(5, 2)
+  ruleKey          String
+
+  scoreComponent ScoreComponent @relation(fields: [scoreComponentId], references: [id], onDelete: Cascade)
+
+  @@map("score_adjustments")
+}
+
+model StrainRecommendation {
+  id              String   @id @default(uuid())
+  userId          String
+  competitiveDate DateTime @db.Date
+  min             Decimal  @db.Decimal(4, 2)
+  max             Decimal  @db.Decimal(4, 2)
+  rationale       Json?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, competitiveDate])
+  @@map("strain_recommendations")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Journal e hábitos
+// ─────────────────────────────────────────────────────────────────────────
+
+enum JournalStatus {
+  PENDING
+  SUBMITTED
+}
+
+enum JournalVisibility {
+  GROUP
+  PRIVATE
+}
+
+model JournalEntry {
+  id            String            @id @default(uuid())
+  userId        String
+  referenceDate DateTime          @db.Date
+  status        JournalStatus     @default(PENDING)
+  visibility    JournalVisibility @default(GROUP)
+  submittedAt   DateTime?
+  createdAt     DateTime          @default(now())
+
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers          JournalAnswer[]
+  dailyPerformance DailyPerformance?
+
+  @@unique([userId, referenceDate])
+  @@map("journal_entries")
+}
+
+enum HabitResponseType {
+  BOOLEAN_NA
+  SCALE_WATER
+  SCALE_FOOD
+  SCALE_ALCOHOL
+  SCALE_CAFFEINE
+}
+
+model Habit {
+  id           String            @id @default(uuid())
+  key          String            @unique // ex: "water", "alcohol"
+  label        String
+  responseType HabitResponseType
+  active       Boolean           @default(true)
+  sortOrder    Int               @default(0)
+
+  answers JournalAnswer[]
+
+  @@map("habits")
+}
+
+model JournalAnswer {
+  id             String @id @default(uuid())
+  journalEntryId String
+  habitId        String
+  value          String // valor textual do enum de resposta correspondente ao responseType
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  habit        Habit        @relation(fields: [habitId], references: [id])
+
+  @@unique([journalEntryId, habitId])
+  @@map("journal_answers")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Metas
+// ─────────────────────────────────────────────────────────────────────────
+
+enum GoalStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  PAUSED
+  COMPLETED
+  REJECTED
+}
+
+enum GoalSource {
+  USER
+  SYSTEM_SUGGESTED
+}
+
+model Goal {
+  id              String       @id @default(uuid())
+  userId          String
+  title           String
+  metric          String
+  targetValue     Decimal?     @db.Decimal(8, 2)
+  category        GoalCategory @default(OTHER)
+  source          GoalSource   @default(USER)
+  status          GoalStatus   @default(PENDING_APPROVAL)
+  cycleStartDate  DateTime     @db.Date
+  cycleLengthDays Int          @default(14)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  deletedAt       DateTime?
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress GoalProgress[]
+
+  @@index([userId, status])
+  @@map("goals")
+}
+
+model GoalSuggestion {
+  id              String       @id @default(uuid())
+  userId          String
+  title           String
+  metric          String
+  targetValue     Decimal?     @db.Decimal(8, 2)
+  category        GoalCategory @default(OTHER)
+  rationale       String?
+  createdAt       DateTime     @default(now())
+  resolvedAt      DateTime?
+  resultingGoalId String?      @unique
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("goal_suggestions")
+}
+
+model GoalProgress {
+  id              String   @id @default(uuid())
+  goalId          String
+  date            DateTime @db.Date
+  value           Decimal  @db.Decimal(8, 2)
+  percentComplete Decimal  @db.Decimal(5, 2)
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@unique([goalId, date])
+  @@map("goal_progress")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Modo recuperação
+// ─────────────────────────────────────────────────────────────────────────
+
+enum RecoveryModeType {
+  INJURED
+  SICK
+  GENERAL_RECOVERY
+}
+
+enum RecoveryModeStatus {
+  ACTIVE
+  ENDED
+  EXTENDED
+}
+
+model RecoveryMode {
+  id                  String             @id @default(uuid())
+  userId              String
+  type                RecoveryModeType
+  reason              String
+  startDate           DateTime           @db.Date
+  endDate             DateTime           @db.Date
+  limitations         String?
+  allowedActivities   String?
+  forbiddenActivities String?
+  notes               String?
+  status              RecoveryModeStatus @default(ACTIVE)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("recovery_modes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Ranking, conquistas, provocações
+// ─────────────────────────────────────────────────────────────────────────
+
+enum RankingScope {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALL_TIME
+}
+
+model RankingSnapshot {
+  id         String       @id @default(uuid())
+  scope      RankingScope
+  periodKey  String // "2026-07-30" | "2026-W31" | "2026-07" | "ALL_TIME"
+  userId     String
+  points     Decimal      @db.Decimal(8, 2)
+  position   Int
+  computedAt DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([scope, periodKey, userId])
+  @@index([scope, periodKey, position])
+  @@map("ranking_snapshots")
+}
+
+enum AchievementRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
+}
+
+model Achievement {
+  id          String            @id @default(uuid())
+  key         String            @unique
+  name        String
+  description String
+  icon        String
+  rarity      AchievementRarity @default(COMMON)
+  rule        Json
+
+  grants UserAchievement[]
+
+  @@map("achievements")
+}
+
+model UserAchievement {
+  id             String   @id @default(uuid())
+  userId         String
+  achievementId  String
+  periodLabel    String?
+  metricSnapshot Json?
+  earnedAt       DateTime @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id])
+
+  @@index([userId])
+  @@map("user_achievements")
+}
+
+model Roast {
+  id            String   @id @default(uuid())
+  templateKey   String
+  renderedText  String
+  targetUserId  String
+  triggerMetric Json?
+  date          DateTime @db.Date
+  createdAt     DateTime @default(now())
+
+  targetUser User @relation(fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId, date])
+  @@map("roasts")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Sistema
+// ─────────────────────────────────────────────────────────────────────────
+
+model NotificationInternal {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications_internal")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("app_settings")
+}
+
+model DisplayConfiguration {
+  id              String   @id @default(uuid())
+  screenOrder     String[] // ex: ["grid_geral", "corrida_semana", ...]
+  intervalSeconds Int      @default(12)
+  enabledScreens  String[]
+  updatedAt       DateTime @updatedAt
+
+  @@map("display_configurations")
+}

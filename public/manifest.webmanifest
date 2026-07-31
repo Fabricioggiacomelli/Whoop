@@ -1,0 +1,19 @@
+{
+  "name": "APEX 4",
+  "short_name": "APEX 4",
+  "description": "Compete. Recover. Evolve.",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05070a",
+  "theme_color": "#05070a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
