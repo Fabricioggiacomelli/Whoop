@@ -29,6 +29,14 @@ export async function getEvolutionSeries(userId: string, windowDays: number | nu
     include: { components: true },
   });
 
+  // Uma única consulta para os snapshots de posição de todos os dias, em vez de uma
+  // sequencial por dia (até centenas de round-trips em "Desde o início").
+  const periodKeys = scores.map((score) => dailyPeriodKey(score.competitiveDate));
+  const snapshots = await db.rankingSnapshot.findMany({
+    where: { scope: "DAILY", periodKey: { in: periodKeys }, userId },
+  });
+  const positionByPeriodKey = new Map(snapshots.map((s) => [s.periodKey, s.position]));
+
   const points: EvolutionPoint[] = [];
 
   for (const score of scores) {
@@ -46,9 +54,6 @@ export async function getEvolutionSeries(userId: string, windowDays: number | nu
     const strainInput = strainComp?.inputValue as { strain?: number; trained?: boolean } | null;
 
     const periodKey = dailyPeriodKey(score.competitiveDate);
-    const snapshot = await db.rankingSnapshot.findUnique({
-      where: { scope_periodKey_userId: { scope: "DAILY", periodKey, userId } },
-    });
 
     points.push({
       date: periodKey,
@@ -63,7 +68,7 @@ export async function getEvolutionSeries(userId: string, windowDays: number | nu
       strain: strainInput?.trained ? (strainInput.strain ?? null) : 0,
       consistency: consistencyComp ? Number(consistencyComp.pointsEarned) : null,
       habits: habitsComp ? Number(habitsComp.pointsEarned) : null,
-      position: snapshot?.position ?? null,
+      position: positionByPeriodKey.get(periodKey) ?? null,
     });
   }
 

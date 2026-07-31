@@ -32,11 +32,24 @@ function todayLocalMidnight(): Date {
 }
 
 export async function getHomeSummary(userId: string): Promise<HomeSummary> {
-  const latest = await db.dailyScore.findFirst({
-    where: { userId },
-    orderBy: { competitiveDate: "desc" },
-    include: { components: true },
-  });
+  // Independentes entre si — buscadas em paralelo em vez de sequencialmente.
+  const [latest, roast, recentAchievements, todayJournal] = await Promise.all([
+    db.dailyScore.findFirst({
+      where: { userId },
+      orderBy: { competitiveDate: "desc" },
+      include: { components: true },
+    }),
+    getLatestRoast(userId),
+    db.userAchievement.findMany({
+      where: { userId },
+      orderBy: { earnedAt: "desc" },
+      take: 3,
+      include: { achievement: true },
+    }),
+    db.journalEntry.findUnique({
+      where: { userId_referenceDate: { userId, referenceDate: todayLocalMidnight() } },
+    }),
+  ]);
 
   let latestScoreSummary: HomeSummary["latestScore"] = null;
   let weeklyPoints: number | null = null;
@@ -44,10 +57,20 @@ export async function getHomeSummary(userId: string): Promise<HomeSummary> {
 
   if (latest) {
     const periodKey = dailyPeriodKey(latest.competitiveDate);
-    const snapshots = await db.rankingSnapshot.findMany({
-      where: { scope: "DAILY", periodKey },
-      orderBy: { position: "asc" },
-    });
+    const weeklyKey = weeklyPeriodKey(latest.competitiveDate);
+
+    const [snapshots, strainRec, weekly] = await Promise.all([
+      db.rankingSnapshot.findMany({
+        where: { scope: "DAILY", periodKey },
+        orderBy: { position: "asc" },
+      }),
+      db.strainRecommendation.findUnique({
+        where: { userId_competitiveDate: { userId, competitiveDate: latest.competitiveDate } },
+      }),
+      db.rankingSnapshot.findUnique({
+        where: { scope_periodKey_userId: { scope: "WEEKLY", periodKey: weeklyKey, userId } },
+      }),
+    ]);
     const mine = snapshots.find((s) => s.userId === userId);
     const leader = snapshots[0];
 
@@ -55,10 +78,6 @@ export async function getHomeSummary(userId: string): Promise<HomeSummary> {
     const recoveryComp = latest.components.find((c) => c.category === "RECOVERY");
     const strainComp = latest.components.find((c) => c.category === "STRAIN");
     const consistencyComp = latest.components.find((c) => c.category === "CONSISTENCY");
-
-    const strainRec = await db.strainRecommendation.findUnique({
-      where: { userId_competitiveDate: { userId, competitiveDate: latest.competitiveDate } },
-    });
 
     const recoveryInput = recoveryComp?.inputValue as { recoveryScore?: number } | null;
     const sleepInput = sleepComp?.inputValue as { sleepPerformancePct?: number } | null;
@@ -86,26 +105,9 @@ export async function getHomeSummary(userId: string): Promise<HomeSummary> {
       streak,
     };
 
-    const weeklyKey = weeklyPeriodKey(latest.competitiveDate);
-    const weekly = await db.rankingSnapshot.findUnique({
-      where: { scope_periodKey_userId: { scope: "WEEKLY", periodKey: weeklyKey, userId } },
-    });
     weeklyPoints = weekly ? Number(weekly.points) : null;
     weeklyPosition = weekly?.position ?? null;
   }
-
-  const roast = await getLatestRoast(userId);
-
-  const recentAchievements = await db.userAchievement.findMany({
-    where: { userId },
-    orderBy: { earnedAt: "desc" },
-    take: 3,
-    include: { achievement: true },
-  });
-
-  const todayJournal = await db.journalEntry.findUnique({
-    where: { userId_referenceDate: { userId, referenceDate: todayLocalMidnight() } },
-  });
 
   return {
     latestScore: latestScoreSummary,

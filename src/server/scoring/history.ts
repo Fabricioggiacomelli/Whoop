@@ -3,19 +3,28 @@ import { db } from "@/server/db";
 import { clamp, round } from "./helpers";
 import type { HistoryContext } from "./types";
 
+const STREAK_LOOKBACK_DAYS = 400;
+
 /** Sequência de dias consecutivos com o dia fechado (CLOSED/REPROCESSED), terminando ontem. */
 async function computeConsecutiveStreak(userId: string, asOfDate: Date): Promise<number> {
+  const windowStart = new Date(asOfDate);
+  windowStart.setDate(windowStart.getDate() - STREAK_LOOKBACK_DAYS);
+
+  // Uma única consulta cobrindo toda a janela, em vez de até 400 round-trips sequenciais
+  // (um por dia) — o histórico é caminhado em memória a partir daqui.
+  const performances = await db.dailyPerformance.findMany({
+    where: { userId, competitiveDate: { gte: windowStart, lt: asOfDate } },
+    select: { competitiveDate: true, status: true },
+  });
+  const statusByDate = new Map(performances.map((p) => [p.competitiveDate.getTime(), p.status]));
+
   const cursor = new Date(asOfDate);
   let streak = 0;
 
-  // Limite de 400 dias evita loop infinito; nenhuma sequência real chegará perto disso.
-  for (let i = 0; i < 400; i++) {
+  for (let i = 0; i < STREAK_LOOKBACK_DAYS; i++) {
     cursor.setDate(cursor.getDate() - 1);
-    const day = await db.dailyPerformance.findUnique({
-      where: { userId_competitiveDate: { userId, competitiveDate: cursor } },
-      select: { status: true },
-    });
-    if (!day || (day.status !== "CLOSED" && day.status !== "REPROCESSED")) break;
+    const status = statusByDate.get(cursor.getTime());
+    if (!status || (status !== "CLOSED" && status !== "REPROCESSED")) break;
     streak += 1;
   }
 
