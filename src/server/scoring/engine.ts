@@ -87,7 +87,7 @@ async function loadActiveRecoveryMode(userId: string, date: Date): Promise<Recov
   const mode = await db.recoveryMode.findFirst({
     where: {
       userId,
-      status: "ACTIVE",
+      status: { in: ["ACTIVE", "EXTENDED"] },
       startDate: { lte: date },
       endDate: { gte: date },
     },

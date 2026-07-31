@@ -109,3 +109,93 @@ export async function signOutAction() {
   "use server";
   await signOut({ redirectTo: "/login" });
 }
+
+const RECOVERY_MODE_TYPES = ["INJURED", "SICK", "GENERAL_RECOVERY"] as const;
+
+export type RecoveryModeState = { error: string | null };
+
+const activateRecoveryModeSchema = z
+  .object({
+    type: z.enum(RECOVERY_MODE_TYPES),
+    reason: z.string().trim().min(3, "Descreva o motivo."),
+    endDate: z.string().min(1, "Informe a data de encerramento."),
+    limitations: z.string().trim().max(280).optional(),
+    allowedActivities: z.string().trim().max(280).optional(),
+    forbiddenActivities: z.string().trim().max(280).optional(),
+    notes: z.string().trim().max(280).optional(),
+  })
+  .refine((data) => new Date(data.endDate) > new Date(), {
+    message: "A data de encerramento precisa ser no futuro.",
+    path: ["endDate"],
+  });
+
+export async function activateRecoveryModeAction(
+  _prevState: RecoveryModeState,
+  formData: FormData,
+): Promise<RecoveryModeState> {
+  const user = await requireUser();
+
+  const parsed = activateRecoveryModeSchema.safeParse({
+    type: formData.get("type"),
+    reason: formData.get("reason"),
+    endDate: formData.get("endDate"),
+    limitations: formData.get("limitations") || undefined,
+    allowedActivities: formData.get("allowedActivities") || undefined,
+    forbiddenActivities: formData.get("forbiddenActivities") || undefined,
+    notes: formData.get("notes") || undefined,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+
+  await db.recoveryMode.create({
+    data: {
+      userId: user.id,
+      type: parsed.data.type,
+      reason: parsed.data.reason,
+      startDate,
+      endDate: new Date(parsed.data.endDate),
+      limitations: parsed.data.limitations,
+      allowedActivities: parsed.data.allowedActivities,
+      forbiddenActivities: parsed.data.forbiddenActivities,
+      notes: parsed.data.notes,
+      status: "ACTIVE",
+    },
+  });
+
+  revalidatePath("/perfil");
+  return { error: null };
+}
+
+export async function endRecoveryModeAction(recoveryModeId: string) {
+  const user = await requireUser();
+  await db.recoveryMode.updateMany({
+    where: { id: recoveryModeId, userId: user.id, status: { in: ["ACTIVE", "EXTENDED"] } },
+    data: { status: "ENDED", endDate: new Date() },
+  });
+  revalidatePath("/perfil");
+}
+
+const extendRecoveryModeSchema = z.object({
+  recoveryModeId: z.string().min(1),
+  newEndDate: z.string().min(1),
+});
+
+export async function extendRecoveryModeAction(formData: FormData) {
+  const user = await requireUser();
+  const parsed = extendRecoveryModeSchema.safeParse({
+    recoveryModeId: formData.get("recoveryModeId"),
+    newEndDate: formData.get("newEndDate"),
+  });
+  if (!parsed.success) return;
+
+  await db.recoveryMode.updateMany({
+    where: { id: parsed.data.recoveryModeId, userId: user.id, status: { in: ["ACTIVE", "EXTENDED"] } },
+    data: { endDate: new Date(parsed.data.newEndDate), status: "EXTENDED" },
+  });
+  revalidatePath("/perfil");
+}

@@ -6,8 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+import { getActiveRecoveryMode, getRecoveryModeHistory } from "@/server/services/recoveryMode.service";
+
 import { ProfileForm } from "./profile-form";
+import { RecoveryModeForm } from "./recovery-mode-form";
+import { RecoveryModeActiveControls } from "./recovery-mode-active-controls";
 import { mockConnectWhoopAction, mockDisconnectWhoopAction, signOutAction } from "./actions";
+
+const RECOVERY_TYPE_LABEL: Record<string, string> = {
+  INJURED: "Lesionado",
+  SICK: "Doente",
+  GENERAL_RECOVERY: "Recuperação geral",
+};
 
 export const metadata: Metadata = { title: "Perfil" };
 
@@ -49,6 +59,9 @@ export default async function PerfilPage() {
 
   const connectionStatus = user.whoopConnection?.status ?? "NOT_CONNECTED";
   const isConnected = connectionStatus !== "NOT_CONNECTED";
+
+  const activeRecoveryMode = await getActiveRecoveryMode(user.id);
+  const recoveryHistory = await getRecoveryModeHistory(user.id);
 
   return (
     <div className="flex flex-col gap-5">
@@ -114,9 +127,52 @@ export default async function PerfilPage() {
         <CardHeader>
           <CardTitle>Modo recuperação</CardTitle>
         </CardHeader>
-        <CardContent className="text-sm text-apex-text-secondary">
-          Ativação (lesionado, doente ou recuperação geral) chega na Fase 2, junto com o ajuste
-          da engine de pontuação. Ver SCORING.md §10.
+        <CardContent className="flex flex-col gap-3">
+          {activeRecoveryMode ? (
+            <>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-apex-text-primary">
+                    {RECOVERY_TYPE_LABEL[activeRecoveryMode.type]}
+                  </p>
+                  <p className="text-xs text-apex-text-secondary">{activeRecoveryMode.reason}</p>
+                </div>
+                <Badge variant="recoveryYellow">
+                  Até{" "}
+                  {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
+                    activeRecoveryMode.endDate,
+                  )}
+                </Badge>
+              </div>
+              <RecoveryModeActiveControls recoveryModeId={activeRecoveryMode.id} />
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-apex-text-secondary">
+                Nenhum modo ativo. Ative se estiver lesionado, doente ou em recuperação geral —
+                a engine ajusta a meta de Strain e a avaliação de consistência automaticamente.
+              </p>
+              <RecoveryModeForm />
+            </>
+          )}
+
+          {recoveryHistory.length > 0 ? (
+            <div className="mt-2 flex flex-col gap-1.5 border-t border-apex-border pt-3">
+              <p className="text-xs font-medium text-apex-text-tertiary">Histórico</p>
+              {recoveryHistory.map((h) => (
+                <div key={h.id} className="flex items-center justify-between text-xs">
+                  <span className="text-apex-text-secondary">
+                    {RECOVERY_TYPE_LABEL[h.type]} ·{" "}
+                    {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(h.startDate)}
+                    –{new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(h.endDate)}
+                  </span>
+                  <Badge variant={h.status === "ENDED" ? "default" : "recoveryYellow"}>
+                    {h.status === "ENDED" ? "Encerrado" : h.status === "EXTENDED" ? "Estendido" : "Ativo"}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
