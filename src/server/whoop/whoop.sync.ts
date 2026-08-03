@@ -151,15 +151,21 @@ export async function closeDayIfReady(userId: string, cycleExternalId: string) {
 
   const competitiveDate = competitiveDateForCycle(cycle.startedAt);
 
-  const status = !mainSleep
-    ? "AWAITING_SLEEP"
-    : !sleepScored
+  // A WHOOP anexa o sono/recovery da noite ao ciclo que ACABOU DE COMEÇAR (não ao que
+  // terminou) — então o ciclo do dia corrente já aparece com sono+recovery "SCORED" horas
+  // depois de acordar, mesmo com o strain do dia ainda subindo. Sem checar `endedAt`, o dia
+  // fechava (e pontuava) usando um strain provisório, rotulado com a data de amanhã.
+  const status = !cycle.endedAt
+    ? "IN_PROGRESS"
+    : !mainSleep
       ? "AWAITING_SLEEP"
-      : !cycle.recovery
-        ? "AWAITING_RECOVERY"
-        : !recoveryScored
+      : !sleepScored
+        ? "AWAITING_SLEEP"
+        : !cycle.recovery
           ? "AWAITING_RECOVERY"
-          : "CLOSED";
+          : !recoveryScored
+            ? "AWAITING_RECOVERY"
+            : "CLOSED";
 
   const performance = await db.dailyPerformance.upsert({
     where: { userId_competitiveDate: { userId, competitiveDate } },
