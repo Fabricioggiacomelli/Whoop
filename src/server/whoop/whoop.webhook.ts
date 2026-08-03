@@ -10,11 +10,13 @@ import type { WhoopWebhookPayload } from "./whoop.types";
 
 /**
  * Verificação confirmada na doc oficial: base64(HMAC-SHA256(timestamp + rawBody, secret)).
+ * A WHOOP assina com o **Client Secret** do app (o mesmo do OAuth) — não existe um segredo
+ * de webhook separado para configurar no dashboard (a tela de Webhooks só pede a URL).
  * Precisa do corpo BRUTO da requisição — nunca do objeto já parseado (reserializar um JSON
  * pode mudar espaçamento/ordem de chaves e quebrar a assinatura). Ver WHOOP_INTEGRATION.md §5.
  */
 export function verifyWebhookSignature(rawBody: string, timestampHeader: string, signatureHeader: string): boolean {
-  const secret = process.env.WHOOP_WEBHOOK_SECRET;
+  const secret = process.env.WHOOP_CLIENT_SECRET;
   if (!secret || !timestampHeader || !signatureHeader) return false;
 
   const expected = createHmac("sha256", secret).update(timestampHeader + rawBody).digest("base64");
