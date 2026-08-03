@@ -32,9 +32,13 @@ async function buildDayInput(userId: string, dailyPerformanceId: string): Promis
   const cycle = performance.cycleId
     ? await db.whoopCycle.findUnique({
         where: { id: performance.cycleId },
-        include: { sleep: true, recovery: true },
+        include: { sleeps: true, recovery: true },
       })
     : null;
+
+  // Um ciclo pode ter mais de um registro de sono (soneca + sono principal) — só o sono
+  // principal (isNap: false) entra na pontuação do dia.
+  const mainSleep = cycle?.sleeps.find((s) => !s.isNap) ?? null;
 
   const journalAnswers = performance.journalEntryId
     ? await db.journalAnswer.findMany({
@@ -56,17 +60,17 @@ async function buildDayInput(userId: string, dailyPerformanceId: string): Promis
 
   return {
     competitiveDate: performance.competitiveDate,
-    sleep: cycle?.sleep
+    sleep: mainSleep
       ? {
-          sleepPerformancePct: cycle.sleep.sleepPerformancePct != null ? Number(cycle.sleep.sleepPerformancePct) : null,
-          sleepEfficiencyPct: cycle.sleep.sleepEfficiencyPct != null ? Number(cycle.sleep.sleepEfficiencyPct) : null,
-          sleepNeedMinutes: cycle.sleep.sleepNeedMinutes,
-          timeInBedMinutes: cycle.sleep.timeInBedMinutes,
-          remMinutes: cycle.sleep.remMinutes,
-          deepMinutes: cycle.sleep.deepMinutes,
-          disturbanceCount: cycle.sleep.disturbanceCount,
-          sleepDebtMinutes: cycle.sleep.sleepDebtMinutes,
-          startedAt: cycle.sleep.startedAt,
+          sleepPerformancePct: mainSleep.sleepPerformancePct != null ? Number(mainSleep.sleepPerformancePct) : null,
+          sleepEfficiencyPct: mainSleep.sleepEfficiencyPct != null ? Number(mainSleep.sleepEfficiencyPct) : null,
+          sleepNeedMinutes: mainSleep.sleepNeedMinutes,
+          timeInBedMinutes: mainSleep.timeInBedMinutes,
+          remMinutes: mainSleep.remMinutes,
+          deepMinutes: mainSleep.deepMinutes,
+          disturbanceCount: mainSleep.disturbanceCount,
+          sleepDebtMinutes: mainSleep.sleepDebtMinutes,
+          startedAt: mainSleep.startedAt,
         }
       : null,
     recovery: cycle?.recovery

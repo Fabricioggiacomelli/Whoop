@@ -111,8 +111,9 @@ async function buildContext(userId: string, competitiveDate: Date): Promise<Roas
   });
 
   const cycle = performance?.cycleId
-    ? await db.whoopCycle.findUnique({ where: { id: performance.cycleId }, include: { sleep: true, recovery: true } })
+    ? await db.whoopCycle.findUnique({ where: { id: performance.cycleId }, include: { sleeps: true, recovery: true } })
     : null;
+  const mainSleep = cycle?.sleeps.find((s) => !s.isNap) ?? null;
 
   const journalAnswers = performance?.journalEntryId
     ? await db.journalAnswer.findMany({
@@ -142,7 +143,7 @@ async function buildContext(userId: string, competitiveDate: Date): Promise<Roas
     position: mine?.position ?? null,
     totalAthletes: dailySnapshots.length,
     positionChange: previousMine && mine ? previousMine.position - mine.position : null,
-    sleepPerformancePct: cycle?.sleep?.sleepPerformancePct != null ? Number(cycle.sleep.sleepPerformancePct) : null,
+    sleepPerformancePct: mainSleep?.sleepPerformancePct != null ? Number(mainSleep.sleepPerformancePct) : null,
     recoveryScore: cycle?.recovery?.recoveryScore != null ? Number(cycle.recovery.recoveryScore) : null,
     strain: strainBaseline?.strain ?? null,
     strainMax: strainBaseline?.recommendedMax ?? null,

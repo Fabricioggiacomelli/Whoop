@@ -12,7 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   await requireAdmin();
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col gap-6 bg-apex-bg px-5 py-8">
+    <div className="mx-auto flex min-h-screen w-full max-w-2xl flex-1 flex-col gap-6 bg-apex-bg px-5 pt-[calc(env(safe-area-inset-top)+2rem)] pb-8">
       <header>
         <p className="text-xs font-medium uppercase tracking-wide text-apex-text-tertiary">
           Administração

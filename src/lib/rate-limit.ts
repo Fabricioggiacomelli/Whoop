@@ -51,3 +51,7 @@ export const loginRateLimiter = buildLimiter(5, 300);
 
 // Callback de OAuth/webhook da WHOOP: janela mais generosa, mas ainda protegida.
 export const whoopWebhookRateLimiter = buildLimiter(60, 60);
+
+// "Puxar para atualizar": 1 sync manual a cada 20s por usuário — suficiente pro gesto,
+// baixo o bastante para não martelar a API da WHOOP.
+export const whoopManualSyncRateLimiter = buildLimiter(1, 20);

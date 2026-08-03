@@ -136,18 +136,22 @@ export async function syncAllResourcesForUser(userId: string) {
 export async function closeDayIfReady(userId: string, cycleExternalId: string) {
   const cycle = await db.whoopCycle.findUnique({
     where: { externalId: cycleExternalId },
-    include: { sleep: true, recovery: true },
+    include: { sleeps: true, recovery: true },
   });
   if (!cycle) return;
 
-  const sleepScoreState = (cycle.sleep?.raw as { score_state?: string } | null)?.score_state;
+  // Um ciclo pode ter mais de um registro de sono (soneca + sono principal) — só o sono
+  // principal (isNap: false) conta para o fechamento do dia competitivo.
+  const mainSleep = cycle.sleeps.find((s) => !s.isNap) ?? null;
+
+  const sleepScoreState = (mainSleep?.raw as { score_state?: string } | null)?.score_state;
   const recoveryScoreState = (cycle.recovery?.raw as { score_state?: string } | null)?.score_state;
   const sleepScored = Boolean(sleepScoreState && isScored(sleepScoreState));
   const recoveryScored = Boolean(recoveryScoreState && isScored(recoveryScoreState));
 
   const competitiveDate = competitiveDateForCycle(cycle.startedAt);
 
-  const status = !cycle.sleep
+  const status = !mainSleep
     ? "AWAITING_SLEEP"
     : !sleepScored
       ? "AWAITING_SLEEP"
