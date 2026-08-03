@@ -7,18 +7,30 @@ import type { RankingScope } from "@/generated/prisma/enums";
  * `competitiveDate` já é um valor de data pura (sem hora) decidido no fechamento do dia —
  * a conversão de timezone relevante (APP_TIMEZONE, América/São_Paulo por padrão) acontece
  * lá, não aqui. Aqui só fazemos aritmética de calendário (semana começando na segunda).
+ *
+ * IMPORTANTE: uma coluna `@db.Date` do Postgres, quando lida de volta pelo Prisma, vem
+ * como meia-noite **UTC** (ex: "2026-08-02T00:00:00.000Z") — mas o `date-fns` formata em
+ * horário LOCAL do processo. Num fuso negativo (América/São_Paulo, UTC-3), formatar essa
+ * meia-noite UTC em horário local cai no dia ANTERIOR (21h do dia 1º de agosto), voltando
+ * uma data inteira. `toCalendarDate` extrai ano/mês/dia em UTC (o valor real gravado no
+ * banco) e reconstrói como horário local antes de formatar, funcionando tanto para valores
+ * vindos do Prisma quanto para os construídos localmente via `setHours(0,0,0,0)` em
+ * `whoop.sync.ts`.
  */
+function toCalendarDate(date: Date): Date {
+  return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
 
 export function dailyPeriodKey(date: Date): string {
-  return format(date, "yyyy-MM-dd");
+  return format(toCalendarDate(date), "yyyy-MM-dd");
 }
 
 export function weeklyPeriodKey(date: Date): string {
-  return format(startOfWeek(date, { weekStartsOn: 1 }), "RRRR-'W'II");
+  return format(startOfWeek(toCalendarDate(date), { weekStartsOn: 1 }), "RRRR-'W'II");
 }
 
 export function monthlyPeriodKey(date: Date): string {
-  return format(date, "yyyy-MM");
+  return format(toCalendarDate(date), "yyyy-MM");
 }
 
 export const ALL_TIME_KEY = "ALL_TIME";

@@ -17,10 +17,23 @@ import {
 } from "./whoop.normalizer";
 import type { WhoopCycleRaw, WhoopRecoveryRaw, WhoopSleepRaw, WhoopWorkoutRaw } from "./whoop.types";
 
-/** Ciclo pertence ao dia em que ele TERMINA (a manhã em que o usuário acorda). */
-function competitiveDateForCycle(startedAt: Date): Date {
+/**
+ * Dia competitivo = a data (meia-noite local) do horário em que o usuário ACORDOU
+ * (fim do sono principal) — nunca "início do ciclo + 1 dia": um ciclo dura da hora de
+ * dormir até a PRÓXIMA hora de dormir (~24h), então "início + 1 dia" cai perto da próxima
+ * noite, não da manhã seguinte. Isso rotulava sistematicamente todo dia fechado com a data
+ * de amanhã (ex: acordar às 11h de terça virava "quarta-feira" no app).
+ */
+function competitiveDateForWakeUp(wokeUpAt: Date): Date {
+  const date = new Date(wokeUpAt);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+/** Antes do sono principal existir, não há horário de acordar ainda — usa o início do
+ * ciclo só como marcador temporário para a linha AWAITING_SLEEP; nunca fecha com essa data. */
+function placeholderCompetitiveDate(startedAt: Date): Date {
   const date = new Date(startedAt);
-  date.setDate(date.getDate() + 1);
   date.setHours(0, 0, 0, 0);
   return date;
 }
@@ -149,7 +162,10 @@ export async function closeDayIfReady(userId: string, cycleExternalId: string) {
   const sleepScored = Boolean(sleepScoreState && isScored(sleepScoreState));
   const recoveryScored = Boolean(recoveryScoreState && isScored(recoveryScoreState));
 
-  const competitiveDate = competitiveDateForCycle(cycle.startedAt);
+  const competitiveDate =
+    mainSleep && sleepScored
+      ? competitiveDateForWakeUp(mainSleep.endedAt)
+      : placeholderCompetitiveDate(cycle.startedAt);
 
   // A WHOOP anexa o sono/recovery da noite ao ciclo que ACABOU DE COMEÇAR (não ao que
   // terminou) — então o ciclo do dia corrente já aparece com sono+recovery "SCORED" horas
