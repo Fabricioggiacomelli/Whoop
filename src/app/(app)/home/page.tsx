@@ -57,7 +57,7 @@ export default async function HomePage() {
 
   const connectionStatus = user.whoopConnection?.status ?? "NOT_CONNECTED";
   const summary = await getHomeSummary(user.id);
-  const score = summary.latestScore;
+  const score = summary.today;
 
   return (
     <div className="flex flex-col gap-5">
@@ -95,38 +95,48 @@ export default async function HomePage() {
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>
-              Sua nota —{" "}
+              {score.inProgress ? "Hoje" : "Sua nota"} —{" "}
               {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
                 score.competitiveDate,
               )}
             </CardTitle>
-            {score.streak > 0 ? (
-              <Badge variant="accent">
-                <Flame className="size-3.5" /> {score.streak}d
-              </Badge>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {score.inProgress ? <Badge variant="recoveryYellow">Em andamento</Badge> : null}
+              {score.streak > 0 ? (
+                <Badge variant="accent">
+                  <Flame className="size-3.5" /> {score.streak}d
+                </Badge>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="flex items-end justify-between">
-              <Link href={`/ranking/${score.competitiveDate.toISOString().slice(0, 10)}/score?userId=${user.id}`}>
-                <p className="apex-numeric text-5xl font-semibold text-apex-text-primary">
-                  {score.totalPoints.toFixed(1)}
-                </p>
-              </Link>
-              <div className="text-right">
-                <p className="apex-numeric text-lg font-semibold text-apex-text-primary">
-                  {score.position ? `${score.position}º` : "—"}
-                  <span className="text-sm font-normal text-apex-text-tertiary">
-                    /{score.totalAthletes}
-                  </span>
-                </p>
-                <p className="text-xs text-apex-text-tertiary">
-                  {score.pointsBehindLeader != null
-                    ? `-${score.pointsBehindLeader.toFixed(1)} do 1º`
-                    : "Líder do dia"}
-                </p>
+            {score.inProgress ? (
+              <p className="text-sm text-apex-text-secondary">
+                Seu ciclo de hoje ainda não terminou — a nota final aparece quando você dormir
+                e a WHOOP fechar o dia.
+              </p>
+            ) : (
+              <div className="flex items-end justify-between">
+                <Link href={`/ranking/${score.competitiveDate.toISOString().slice(0, 10)}/score?userId=${user.id}`}>
+                  <p className="apex-numeric text-5xl font-semibold text-apex-text-primary">
+                    {score.totalPoints?.toFixed(1)}
+                  </p>
+                </Link>
+                <div className="text-right">
+                  <p className="apex-numeric text-lg font-semibold text-apex-text-primary">
+                    {score.position ? `${score.position}º` : "—"}
+                    <span className="text-sm font-normal text-apex-text-tertiary">
+                      /{score.totalAthletes}
+                    </span>
+                  </p>
+                  <p className="text-xs text-apex-text-tertiary">
+                    {score.pointsBehindLeader != null
+                      ? `-${score.pointsBehindLeader.toFixed(1)} do 1º`
+                      : "Líder do dia"}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg border border-apex-border bg-apex-surface-raised p-3">
@@ -155,7 +165,9 @@ export default async function HomePage() {
                 </p>
               </div>
               <div className="rounded-lg border border-apex-border bg-apex-surface-raised p-3">
-                <p className="text-xs text-apex-text-tertiary">Strain</p>
+                <p className="text-xs text-apex-text-tertiary">
+                  Strain{score.inProgress ? " (parcial)" : ""}
+                </p>
                 <p className="apex-numeric mt-1 text-lg font-semibold text-apex-text-primary">
                   {score.trained ? score.strain?.toFixed(1) : "—"}
                 </p>
@@ -188,8 +200,7 @@ export default async function HomePage() {
       ) : (
         <Card>
           <CardContent className="pt-5 text-sm text-apex-text-secondary">
-            Ainda não há um dia fechado para calcular sua nota. Assim que a WHOOP sincronizar,
-            aparece aqui.
+            Aguardando dados de hoje — assim que a WHOOP sincronizar seu ciclo, aparece aqui.
           </CardContent>
         </Card>
       )}
