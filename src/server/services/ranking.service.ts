@@ -166,11 +166,27 @@ export async function getLiveDailyRanking(date: Date): Promise<LiveDailyRow[]> {
   });
   const perfByUser = new Map(performances.map((p) => [p.userId, p]));
 
+  console.log("LIVE_RANKING_DEBUG", {
+    date: date.toISOString(),
+    usersCount: users.length,
+    userIds: users.map((u) => u.id),
+    performancesCount: performances.length,
+    performances: performances.map((p) => ({
+      userId: p.userId,
+      status: p.status,
+      competitiveDate: p.competitiveDate.toISOString(),
+      hasScore: p.dailyScores.length > 0,
+    })),
+  });
+
   const rows = (
     await Promise.all(
       users.map(async (user) => {
         const perf = perfByUser.get(user.id);
-        if (!perf) return null;
+        if (!perf) {
+          console.log("LIVE_RANKING_SKIP", { userId: user.id, reason: "no_performance" });
+          return null;
+        }
 
         const closedScore = perf.dailyScores[0];
         let points: number;
@@ -180,8 +196,17 @@ export async function getLiveDailyRanking(date: Date): Promise<LiveDailyRow[]> {
           points = Number(closedScore.totalPoints);
           inProgress = false;
         } else {
-          const preview = await previewDailyScore(user.id, date);
-          if (!preview) return null;
+          let preview: { totalPoints: number } | null = null;
+          try {
+            preview = await previewDailyScore(user.id, date);
+          } catch (error) {
+            console.log("LIVE_RANKING_PREVIEW_ERROR", { userId: user.id, message: (error as Error).message });
+            return null;
+          }
+          if (!preview) {
+            console.log("LIVE_RANKING_SKIP", { userId: user.id, reason: "preview_null" });
+            return null;
+          }
           points = preview.totalPoints;
           inProgress = true;
         }
