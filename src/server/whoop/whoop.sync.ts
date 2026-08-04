@@ -29,12 +29,6 @@ function competitiveDateForWakeUp(wokeUpAt: Date): Date {
   return calendarDateInAppTimezone(wokeUpAt);
 }
 
-/** Antes do sono principal existir, não há horário de acordar ainda — usa o início do
- * ciclo só como marcador temporário para a linha AWAITING_SLEEP; nunca fecha com essa data. */
-function placeholderCompetitiveDate(startedAt: Date): Date {
-  return calendarDateInAppTimezone(startedAt);
-}
-
 async function recordRawEvent(userId: string, resource: string, payload: unknown, source: "SYNC" | "HISTORICAL" = "SYNC") {
   await db.whoopRawEvent.create({ data: { userId, resource, source, payload: payload as never } });
 }
@@ -155,14 +149,21 @@ export async function closeDayIfReady(userId: string, cycleExternalId: string) {
   const mainSleep = cycle.sleeps.find((s) => !s.isNap) ?? null;
 
   const sleepScoreState = (mainSleep?.raw as { score_state?: string } | null)?.score_state;
-  const recoveryScoreState = (cycle.recovery?.raw as { score_state?: string } | null)?.score_state;
   const sleepScored = Boolean(sleepScoreState && isScored(sleepScoreState));
-  const recoveryScored = Boolean(recoveryScoreState && isScored(recoveryScoreState));
 
-  const competitiveDate =
-    mainSleep && sleepScored
-      ? competitiveDateForWakeUp(mainSleep.endedAt)
-      : placeholderCompetitiveDate(cycle.startedAt);
+  // Sem o sono principal (ou ainda não SCORED) não dá pra saber com segurança a qual dia
+  // calendário este ciclo pertence — nunca grava um placeholder por "início do ciclo" aqui.
+  // Quem dorme antes da meia-noite (a maioria) tem o ciclo de HOJE fechando (rotulado pelo
+  // horário em que acordou hoje) bem na hora em que o ciclo de AMANHÃ começa (foi dormir de
+  // novo) — os dois caem no mesmo dia calendário até virar meia-noite, e um placeholder
+  // baseado no início desse novo ciclo colidiria com a chave (userId, dia) do dia que
+  // acabou de fechar de verdade, sobrescrevendo-o de volta para um estado não-final.
+  if (!mainSleep || !sleepScored) return;
+
+  const competitiveDate = competitiveDateForWakeUp(mainSleep.endedAt);
+
+  const recoveryScoreState = (cycle.recovery?.raw as { score_state?: string } | null)?.score_state;
+  const recoveryScored = Boolean(recoveryScoreState && isScored(recoveryScoreState));
 
   // A WHOOP anexa o sono/recovery da noite ao ciclo que ACABOU DE COMEÇAR (não ao que
   // terminou) — então o ciclo do dia corrente já aparece com sono+recovery "SCORED" horas
@@ -170,15 +171,11 @@ export async function closeDayIfReady(userId: string, cycleExternalId: string) {
   // fechava (e pontuava) usando um strain provisório, rotulado com a data de amanhã.
   const status = !cycle.endedAt
     ? "IN_PROGRESS"
-    : !mainSleep
-      ? "AWAITING_SLEEP"
-      : !sleepScored
-        ? "AWAITING_SLEEP"
-        : !cycle.recovery
-          ? "AWAITING_RECOVERY"
-          : !recoveryScored
-            ? "AWAITING_RECOVERY"
-            : "CLOSED";
+    : !cycle.recovery
+      ? "AWAITING_RECOVERY"
+      : !recoveryScored
+        ? "AWAITING_RECOVERY"
+        : "CLOSED";
 
   const performance = await db.dailyPerformance.upsert({
     where: { userId_competitiveDate: { userId, competitiveDate } },
