@@ -5,14 +5,15 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apex-accent focus-visible:ring-offset-2 focus-visible:ring-offset-apex-bg disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-150 ease-out active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apex-accent focus-visible:ring-offset-2 focus-visible:ring-offset-apex-bg disabled:pointer-events-none disabled:opacity-50 disabled:active:scale-100 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default: "bg-apex-text-primary text-apex-bg hover:bg-apex-text-primary/90",
-        accent: "bg-apex-accent text-white hover:bg-apex-accent/90",
+        accent:
+          "bg-gradient-to-br from-apex-accent to-apex-accent-2 text-white shadow-[0_4px_20px_-6px_var(--apex-accent)] hover:brightness-110",
         outline:
-          "border border-apex-border bg-transparent text-apex-text-primary hover:bg-apex-surface-raised",
+          "border border-apex-border bg-transparent text-apex-text-primary hover:bg-apex-surface-raised hover:border-apex-border-strong",
         ghost: "text-apex-text-secondary hover:bg-apex-surface hover:text-apex-text-primary",
         destructive: "bg-apex-recovery-red text-white hover:bg-apex-recovery-red/90",
       },

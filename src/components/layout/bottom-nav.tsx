@@ -20,9 +20,9 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Navegação principal"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-apex-border bg-apex-bg/90 backdrop-blur-lg pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2"
     >
-      <ul className="mx-auto flex max-w-md items-stretch justify-between px-2">
+      <ul className="mx-auto flex max-w-md items-stretch justify-between gap-1 rounded-2xl border border-apex-border bg-apex-surface/85 p-1.5 shadow-[0_16px_40px_-14px_rgba(0,0,0,0.75)] backdrop-blur-xl">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const isActive = pathname === href || pathname.startsWith(`${href}/`);
           return (
@@ -31,12 +31,14 @@ export function BottomNav() {
                 href={href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150",
-                  isActive ? "text-apex-text-primary" : "text-apex-text-tertiary",
+                  "relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-xs font-medium transition-all duration-150",
+                  isActive
+                    ? "bg-gradient-to-b from-apex-accent/20 to-apex-accent/5 text-apex-text-primary shadow-[inset_0_0_0_1px_rgba(77,123,255,0.35)]"
+                    : "text-apex-text-tertiary hover:text-apex-text-secondary",
                 )}
               >
                 <Icon
-                  className="size-5"
+                  className={cn("size-5", isActive && "text-apex-accent")}
                   strokeWidth={isActive ? 2.25 : 1.75}
                   aria-hidden="true"
                 />

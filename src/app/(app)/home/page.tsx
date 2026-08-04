@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AlertTriangle, Flame, MessageSquareWarning, Sparkles } from "lucide-react";
+import { AlertTriangle, BookOpen, Flame, MessageSquareWarning, Sparkles } from "lucide-react";
 
 import { db } from "@/server/db";
 import { requireUser } from "@/server/services/auth-guard";
@@ -9,7 +9,10 @@ import { getHomeSummary } from "@/server/services/home.service";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { StaggerList } from "@/components/ui/stagger-list";
 import { cn } from "@/lib/utils";
+
+import { ScoreRing } from "./score-ring";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -42,6 +45,41 @@ function recoveryBadgeVariant(score: number | null): BadgeProps["variant"] {
   if (score >= 67) return "recoveryGreen";
   if (score >= 34) return "recoveryYellow";
   return "recoveryRed";
+}
+
+/** Tile de métrica com uma mini barra de progresso — cada número da telemetria já vem com
+ * uma leitura visual de relance, não só o texto. */
+function MetricTile({
+  label,
+  value,
+  displayValue,
+  max,
+  barClassName,
+}: {
+  label: string;
+  value: number | null | undefined;
+  displayValue: string;
+  max: number;
+  barClassName?: string;
+}) {
+  const pct = value != null && max > 0 ? Math.min(100, Math.max(4, (value / max) * 100)) : 0;
+
+  return (
+    <div className="rounded-lg border border-apex-border bg-apex-surface-raised p-3">
+      <p className="text-xs text-apex-text-tertiary">{label}</p>
+      <p className="apex-numeric mt-1 text-lg font-semibold text-apex-text-primary">{displayValue}</p>
+      {value != null ? (
+        <div className="mt-2 h-1 overflow-hidden rounded-full bg-apex-border">
+          <div
+            className={cn("h-full rounded-full transition-[width] duration-500", barClassName ?? "bg-apex-accent")}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      ) : (
+        <div className="mt-2 h-1" aria-hidden="true" />
+      )}
+    </div>
+  );
 }
 
 export default async function HomePage() {
@@ -77,14 +115,17 @@ export default async function HomePage() {
       </header>
 
       {summary.journalPendingToday ? (
-        <Link href="/journal">
+        <Link href="/journal" className="block active:scale-[0.98] transition-transform duration-150">
           <Card className="border-apex-accent/40 bg-apex-accent/5 transition-colors hover:bg-apex-accent/10">
-            <CardContent className="flex items-center justify-between pt-5">
-              <div>
+            <CardContent className="flex items-center gap-3 pt-5">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-apex-accent/15 text-apex-accent">
+                <BookOpen className="size-5" aria-hidden="true" />
+              </span>
+              <div className="flex-1">
                 <p className="text-sm font-medium text-apex-text-primary">Journal de hoje pendente</p>
                 <p className="text-xs text-apex-text-secondary">Responda para pontuar em Hábitos.</p>
               </div>
-              <Button variant="accent" size="sm">
+              <Button variant="accent" tabIndex={-1}>
                 Responder
               </Button>
             </CardContent>
@@ -93,7 +134,8 @@ export default async function HomePage() {
       ) : null}
 
       {score ? (
-        <Card>
+        <Card glow className="relative overflow-hidden">
+          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-apex-accent to-apex-accent-2" />
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>
               {score.inProgress ? "Hoje" : "Sua nota"} —{" "}
@@ -117,62 +159,64 @@ export default async function HomePage() {
                 e a WHOOP fechar o dia.
               </p>
             ) : (
-              <div className="flex items-end justify-between">
-                <Link href={`/ranking/${score.competitiveDate.toISOString().slice(0, 10)}/score?userId=${user.id}`}>
-                  <p className="apex-numeric text-5xl font-semibold text-apex-text-primary">
-                    {score.totalPoints?.toFixed(1)}
-                  </p>
-                </Link>
-                <div className="text-right">
-                  <p className="apex-numeric text-lg font-semibold text-apex-text-primary">
+              <div className="flex items-center gap-4">
+                <ScoreRing
+                  points={score.totalPoints ?? 0}
+                  progress={
+                    score.pointsBehindLeader != null && (score.totalPoints ?? 0) + score.pointsBehindLeader > 0
+                      ? (score.totalPoints ?? 0) / ((score.totalPoints ?? 0) + score.pointsBehindLeader)
+                      : 1
+                  }
+                  href={`/ranking/${score.competitiveDate.toISOString().slice(0, 10)}/score?userId=${user.id}`}
+                />
+                <div className="flex-1">
+                  <p className="apex-numeric text-3xl font-semibold text-apex-text-primary">
                     {score.position ? `${score.position}º` : "—"}
-                    <span className="text-sm font-normal text-apex-text-tertiary">
+                    <span className="text-base font-normal text-apex-text-tertiary">
                       /{score.totalAthletes}
                     </span>
                   </p>
                   <p className="text-xs text-apex-text-tertiary">
                     {score.pointsBehindLeader != null
                       ? `-${score.pointsBehindLeader.toFixed(1)} do 1º`
-                      : "Líder do dia"}
+                      : "Líder do dia 🏁"}
                   </p>
                 </div>
               </div>
             )}
 
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg border border-apex-border bg-apex-surface-raised p-3">
-                <p className="text-xs text-apex-text-tertiary">Recovery</p>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <span className="apex-numeric text-lg font-semibold text-apex-text-primary">
-                    {score.recoveryScore != null ? Math.round(score.recoveryScore) : "—"}
-                  </span>
-                  {score.recoveryScore != null ? (
-                    <span
-                      className={cn(
-                        "size-2 rounded-full",
-                        recoveryBadgeVariant(score.recoveryScore) === "recoveryGreen" && "bg-apex-recovery-green",
-                        recoveryBadgeVariant(score.recoveryScore) === "recoveryYellow" && "bg-apex-recovery-yellow",
-                        recoveryBadgeVariant(score.recoveryScore) === "recoveryRed" && "bg-apex-recovery-red",
-                      )}
-                      aria-hidden="true"
-                    />
-                  ) : null}
-                </div>
-              </div>
-              <div className="rounded-lg border border-apex-border bg-apex-surface-raised p-3">
-                <p className="text-xs text-apex-text-tertiary">Sleep Perf.</p>
-                <p className="apex-numeric mt-1 text-lg font-semibold text-apex-text-primary">
-                  {score.sleepPerformancePct != null ? `${Math.round(score.sleepPerformancePct)}%` : "—"}
-                </p>
-              </div>
-              <div className="rounded-lg border border-apex-border bg-apex-surface-raised p-3">
-                <p className="text-xs text-apex-text-tertiary">
-                  Strain{score.inProgress ? " (parcial)" : ""}
-                </p>
-                <p className="apex-numeric mt-1 text-lg font-semibold text-apex-text-primary">
-                  {score.trained ? score.strain?.toFixed(1) : "—"}
-                </p>
-              </div>
+              <MetricTile
+                label="Recovery"
+                value={score.recoveryScore}
+                displayValue={score.recoveryScore != null ? Math.round(score.recoveryScore).toString() : "—"}
+                max={100}
+                barClassName={
+                  score.recoveryScore != null
+                    ? recoveryBadgeVariant(score.recoveryScore) === "recoveryGreen"
+                      ? "bg-apex-recovery-green"
+                      : recoveryBadgeVariant(score.recoveryScore) === "recoveryYellow"
+                        ? "bg-apex-recovery-yellow"
+                        : "bg-apex-recovery-red"
+                    : undefined
+                }
+              />
+              <MetricTile
+                label="Sleep Perf."
+                value={score.sleepPerformancePct}
+                displayValue={
+                  score.sleepPerformancePct != null ? `${Math.round(score.sleepPerformancePct)}%` : "—"
+                }
+                max={100}
+                barClassName="bg-apex-accent"
+              />
+              <MetricTile
+                label={`Strain${score.inProgress ? " (parcial)" : ""}`}
+                value={score.trained ? score.strain : null}
+                displayValue={score.trained ? (score.strain?.toFixed(1) ?? "—") : "—"}
+                max={score.strainMax ?? 21}
+                barClassName="bg-gradient-to-r from-apex-accent to-apex-accent-2"
+              />
             </div>
 
             {score.strainMin != null && score.strainMax != null ? (
@@ -220,7 +264,8 @@ export default async function HomePage() {
           <CardHeader>
             <CardTitle>Conquistas recentes</CardTitle>
           </CardHeader>
-          <CardContent className="flex gap-3 pt-0">
+          <CardContent className="pt-0">
+            <StaggerList className="flex gap-3">
             {summary.recentAchievements.map((a) => (
               <div
                 key={`${a.key}-${a.earnedAt.toISOString()}`}
@@ -235,6 +280,7 @@ export default async function HomePage() {
                 </span>
               </div>
             ))}
+            </StaggerList>
           </CardContent>
         </Card>
       ) : null}

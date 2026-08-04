@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Crown, Minus } from "lucide-react";
 
 import { requireUser } from "@/server/services/auth-guard";
 import { calendarDateInAppTimezone, todayInAppTimezone } from "@/lib/timezone";
@@ -15,6 +15,7 @@ import {
 } from "@/server/services/ranking.service";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { StaggerList } from "@/components/ui/stagger-list";
 import { cn } from "@/lib/utils";
 import type { RankingScope } from "@/generated/prisma/enums";
 
@@ -149,7 +150,7 @@ export default async function RankingPage({
             {isToday ? "Ainda não há dados de hoje." : "Sem dados para esse dia."}
           </Card>
         ) : (
-          <div className="flex flex-col gap-2">
+          <StaggerList className="flex flex-col gap-2">
             {rows.map((row) => (
               <DailyRow
                 key={row.userId}
@@ -164,7 +165,7 @@ export default async function RankingPage({
                 periodKey={selectedKey}
               />
             ))}
-          </div>
+          </StaggerList>
         )}
       </div>
     );
@@ -206,7 +207,7 @@ export default async function RankingPage({
         <p className="text-sm text-apex-text-secondary">{periodLabel(scope, periodKey)}</p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <StaggerList className="flex flex-col gap-2">
         {rows.map((row) => {
           const prevPosition = previousPositionByUser.get(row.userId);
           const trend = prevPosition ? prevPosition - row.position : 0;
@@ -224,7 +225,7 @@ export default async function RankingPage({
             />
           );
         })}
-      </div>
+      </StaggerList>
     </div>
   );
 }
@@ -245,19 +246,29 @@ function DailyRow({
   linkToDetail?: boolean;
 }) {
   const gap = row.position === 1 ? null : leaderPoints - row.points;
+  const isLeader = row.position === 1;
 
   const content = (
     <div
       className={cn(
         "flex items-center gap-3 rounded-xl border border-apex-border bg-apex-surface px-4 py-3.5 transition-colors",
         isMe && "border-apex-accent/50 bg-apex-accent/5",
+        isLeader && "apex-card-premium",
       )}
     >
-      <span className="apex-numeric w-5 shrink-0 text-center text-sm font-semibold text-apex-text-tertiary">
-        {row.position}
+      <span
+        className={cn(
+          "apex-numeric flex w-6 shrink-0 items-center justify-center text-sm font-semibold",
+          isLeader ? "text-apex-accent-2" : "text-apex-text-tertiary",
+        )}
+      >
+        {isLeader ? <Crown className="size-4" aria-hidden="true" /> : row.position}
       </span>
       <span
-        className="size-9 shrink-0 rounded-full border border-apex-border"
+        className={cn(
+          "size-9 shrink-0 rounded-full border",
+          isLeader ? "border-apex-accent-2/60 shadow-[0_0_12px_-2px_var(--apex-accent-2)]" : "border-apex-border",
+        )}
         style={{ backgroundColor: row.colorHex ?? "#242933" }}
         aria-hidden="true"
       />

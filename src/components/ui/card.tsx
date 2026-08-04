@@ -2,11 +2,16 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+function Card({
+  className,
+  glow = false,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement> & { glow?: boolean }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-apex-border bg-apex-surface shadow-[0_1px_0_0_rgba(255,255,255,0.02)_inset]",
+        "rounded-2xl border border-apex-border bg-apex-surface shadow-[0_1px_0_0_rgba(255,255,255,0.02)_inset,0_12px_24px_-16px_rgba(0,0,0,0.6)]",
+        glow && "apex-card-premium apex-glow-accent",
         className,
       )}
       {...props}

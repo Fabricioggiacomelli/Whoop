@@ -9,6 +9,7 @@
   --apex-surface: #14181f;
   --apex-surface-raised: #1b1f27;
   --apex-border: #242933;
+  --apex-border-strong: #333a49;
   --apex-text-primary: #f5f6f8;
   --apex-text-secondary: #8a8f99;
   /* Contraste verificado >= 4.5:1 (WCAG AA) contra apex-bg, apex-surface e
@@ -20,6 +21,9 @@
   --apex-recovery-red: #ff5c5c;
 
   --apex-accent: #4d7bff;
+  /* Parceiro de gradiente do accent — telemetria/HUD (anel de progresso, stripe de
+     destaque, glow). Nunca usado sozinho como cor de texto/estado. */
+  --apex-accent-2: #22d3ee;
 
   --background: var(--apex-bg);
   --foreground: var(--apex-text-primary);
@@ -33,6 +37,7 @@
   --color-apex-surface: var(--apex-surface);
   --color-apex-surface-raised: var(--apex-surface-raised);
   --color-apex-border: var(--apex-border);
+  --color-apex-border-strong: var(--apex-border-strong);
   --color-apex-text-primary: var(--apex-text-primary);
   --color-apex-text-secondary: var(--apex-text-secondary);
   --color-apex-text-tertiary: var(--apex-text-tertiary);
@@ -42,6 +47,7 @@
   --color-apex-recovery-red: var(--apex-recovery-red);
 
   --color-apex-accent: var(--apex-accent);
+  --color-apex-accent-2: var(--apex-accent-2);
 
   --font-sans: var(--font-inter);
   --font-mono: var(--font-geist-mono);
@@ -55,8 +61,17 @@ html {
   color-scheme: dark;
 }
 
+/* Fundo em camadas: vinheta radial sutil no topo (profundidade de "cockpit") + grão fino
+   (textura, não decoração vazia — quebra o flat-black chapado sem tirar contraste do
+   conteúdo). Tudo em background-image do body, então nunca compete em z-index com o
+   conteúdo real. */
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 90% 55% at 50% -12%, color-mix(in oklch, var(--apex-accent) 16%, transparent), transparent 62%),
+    radial-gradient(ellipse 70% 40% at 100% 100%, color-mix(in oklch, var(--apex-accent-2) 7%, transparent), transparent 60%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  background-attachment: fixed;
   color: var(--foreground);
 }
 
@@ -64,6 +79,30 @@ body {
 .apex-numeric {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
+}
+
+/* Card com borda em gradiente (accent → accent-2) — reservado pro card de destaque de
+   cada tela (nunca mais de um por tela, senão vira ruído). Técnica de dois backgrounds
+   (padding-box + border-box) em vez de ::before, pra não precisar gerenciar z-index. */
+.apex-card-premium {
+  position: relative;
+  background:
+    linear-gradient(var(--apex-surface-raised), var(--apex-surface-raised)) padding-box,
+    linear-gradient(135deg, var(--apex-accent), var(--apex-accent-2)) border-box;
+  border: 1px solid transparent;
+}
+
+/* Texto em gradiente accent → accent-2 — só pro número hero de cada tela (o placar do
+   dia). Nunca em texto de corrida/parágrafo. */
+.apex-gradient-text {
+  background: linear-gradient(135deg, var(--apex-text-primary) 35%, var(--apex-accent-2));
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.apex-glow-accent {
+  box-shadow: 0 0 40px -8px color-mix(in oklch, var(--apex-accent) 55%, transparent);
 }
 
 /* Bug conhecido do Safari/iOS: o texto de input[type=date] por extenso (locale pt-BR,
