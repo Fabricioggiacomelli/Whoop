@@ -91,6 +91,17 @@ export default async function RankingPage({
       getRanking("DAILY", previousKey),
     ]);
 
+    // DEBUG TEMP — remover depois de diagnosticar "sem dados no ranking".
+    console.log("RANKING_DEBUG", {
+      today: today.toISOString(),
+      selectedDate: selectedDate.toISOString(),
+      selectedKey,
+      todayKey,
+      isToday,
+      rowsCount: rows.length,
+      userId: user.id,
+    });
+
     const previousPositionByUser = new Map(previousRows.map((r) => [r.userId, r.position]));
     const leaderPoints = rows[0]?.points ?? 0;
 
