@@ -77,37 +77,38 @@ async function getCorridaDaSemana() {
 async function getTelemetria() {
   const athletes = await getAthletes();
 
-  const rows = await Promise.all(
-    athletes.map(async (a) => {
-      const latest = await db.dailyScore.findFirst({
-        where: { userId: a.userId },
-        orderBy: { competitiveDate: "desc" },
-        include: { components: true },
-      });
-      const connection = await db.whoopConnection.findUnique({ where: { userId: a.userId } });
+  // Sequencial de propósito — ver nota em getPitWall/whoop.sync.ts sobre findUnique
+  // concorrente e o driver adapter do Prisma.
+  const rows = [];
+  for (const a of athletes) {
+    const latest = await db.dailyScore.findFirst({
+      where: { userId: a.userId },
+      orderBy: { competitiveDate: "desc" },
+      include: { components: true },
+    });
+    const connection = await db.whoopConnection.findUnique({ where: { userId: a.userId } });
 
-      const recovery = latest?.components.find((c) => c.category === "RECOVERY");
-      const sleep = latest?.components.find((c) => c.category === "SLEEP");
-      const strain = latest?.components.find((c) => c.category === "STRAIN");
+    const recovery = latest?.components.find((c) => c.category === "RECOVERY");
+    const sleep = latest?.components.find((c) => c.category === "SLEEP");
+    const strain = latest?.components.find((c) => c.category === "STRAIN");
 
-      const recoveryInput = recovery?.inputValue as { recoveryScore?: number; hrvMs?: number } | null;
-      const recoveryBaseline = recovery?.baselineComparison as { baselineAvgHrvMs?: number } | null;
-      const sleepInput = sleep?.inputValue as { sleepPerformancePct?: number } | null;
-      const strainInput = strain?.inputValue as { strain?: number; trained?: boolean } | null;
+    const recoveryInput = recovery?.inputValue as { recoveryScore?: number; hrvMs?: number } | null;
+    const recoveryBaseline = recovery?.baselineComparison as { baselineAvgHrvMs?: number } | null;
+    const sleepInput = sleep?.inputValue as { sleepPerformancePct?: number } | null;
+    const strainInput = strain?.inputValue as { strain?: number; trained?: boolean } | null;
 
-      return {
-        ...a,
-        recoveryScore: recoveryInput?.recoveryScore ?? null,
-        hrvRelative:
-          recoveryInput?.hrvMs && recoveryBaseline?.baselineAvgHrvMs
-            ? Math.round((recoveryInput.hrvMs / recoveryBaseline.baselineAvgHrvMs) * 100)
-            : null,
-        sleepPerformancePct: sleepInput?.sleepPerformancePct ?? null,
-        strain: strainInput?.trained ? (strainInput.strain ?? null) : 0,
-        connectionStatus: connection?.status ?? "NOT_CONNECTED",
-      };
-    }),
-  );
+    rows.push({
+      ...a,
+      recoveryScore: recoveryInput?.recoveryScore ?? null,
+      hrvRelative:
+        recoveryInput?.hrvMs && recoveryBaseline?.baselineAvgHrvMs
+          ? Math.round((recoveryInput.hrvMs / recoveryBaseline.baselineAvgHrvMs) * 100)
+          : null,
+      sleepPerformancePct: sleepInput?.sleepPerformancePct ?? null,
+      strain: strainInput?.trained ? (strainInput.strain ?? null) : 0,
+      connectionStatus: connection?.status ?? "NOT_CONNECTED",
+    });
+  }
 
   return rows;
 }
@@ -204,41 +205,44 @@ async function getSemPiedade() {
 async function getPitWall() {
   const athletes = await getAthletes();
 
-  const rows = await Promise.all(
-    athletes.map(async (a) => {
-      const latest = await db.dailyScore.findFirst({
-        where: { userId: a.userId },
-        orderBy: { competitiveDate: "desc" },
-        include: { components: true },
-      });
-      const strainRec = latest
-        ? await db.strainRecommendation.findUnique({
-            where: { userId_competitiveDate: { userId: a.userId, competitiveDate: latest.competitiveDate } },
-          })
-        : null;
+  // Sequencial de propósito: strainRecommendation/journalEntry usam chave composta
+  // (userId_competitiveDate / userId_referenceDate) — disparar o mesmo findUnique em
+  // paralelo pra cada atleta faz o driver adapter (@prisma/adapter-pg, Prisma 7.9.1)
+  // devolver "não encontrado" mesmo quando o registro existe. Ver whoop.sync.ts.
+  const rows = [];
+  for (const a of athletes) {
+    const latest = await db.dailyScore.findFirst({
+      where: { userId: a.userId },
+      orderBy: { competitiveDate: "desc" },
+      include: { components: true },
+    });
+    const strainRec = latest
+      ? await db.strainRecommendation.findUnique({
+          where: { userId_competitiveDate: { userId: a.userId, competitiveDate: latest.competitiveDate } },
+        })
+      : null;
 
-      const recovery = latest?.components.find((c) => c.category === "RECOVERY");
-      const strain = latest?.components.find((c) => c.category === "STRAIN");
-      const recoveryInput = recovery?.inputValue as { recoveryScore?: number } | null;
-      const strainInput = strain?.inputValue as { strain?: number; trained?: boolean } | null;
+    const recovery = latest?.components.find((c) => c.category === "RECOVERY");
+    const strain = latest?.components.find((c) => c.category === "STRAIN");
+    const recoveryInput = recovery?.inputValue as { recoveryScore?: number } | null;
+    const strainInput = strain?.inputValue as { strain?: number; trained?: boolean } | null;
 
-      const connection = await db.whoopConnection.findUnique({ where: { userId: a.userId } });
+    const connection = await db.whoopConnection.findUnique({ where: { userId: a.userId } });
 
-      const todayJournal = await db.journalEntry.findUnique({
-        where: { userId_referenceDate: { userId: a.userId, referenceDate: todayInAppTimezone() } },
-      });
+    const todayJournal = await db.journalEntry.findUnique({
+      where: { userId_referenceDate: { userId: a.userId, referenceDate: todayInAppTimezone() } },
+    });
 
-      const overStrain = Boolean(
-        strainInput?.trained && strainRec && (strainInput.strain ?? 0) > Number(strainRec.max),
-      );
-      const shouldRest = (recoveryInput?.recoveryScore ?? 100) < 34;
-      const shouldTrain = (recoveryInput?.recoveryScore ?? 0) >= 67;
-      const journalPending = !todayJournal || todayJournal.status !== "SUBMITTED";
-      const noData = connection?.status !== "CONNECTED" && connection?.status !== "UP_TO_DATE";
+    const overStrain = Boolean(
+      strainInput?.trained && strainRec && (strainInput.strain ?? 0) > Number(strainRec.max),
+    );
+    const shouldRest = (recoveryInput?.recoveryScore ?? 100) < 34;
+    const shouldTrain = (recoveryInput?.recoveryScore ?? 0) >= 67;
+    const journalPending = !todayJournal || todayJournal.status !== "SUBMITTED";
+    const noData = connection?.status !== "CONNECTED" && connection?.status !== "UP_TO_DATE";
 
-      return { ...a, overStrain, shouldRest, shouldTrain, journalPending, noData };
-    }),
-  );
+    rows.push({ ...a, overStrain, shouldRest, shouldTrain, journalPending, noData });
+  }
 
   return rows;
 }

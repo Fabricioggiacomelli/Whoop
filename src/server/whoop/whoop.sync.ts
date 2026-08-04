@@ -110,18 +110,23 @@ export async function syncAllResourcesForUser(userId: string) {
     client.getWorkouts(),
   ]);
 
-  const CONCURRENCY = 3;
-  await mapWithConcurrency(cyclesPage.records, CONCURRENCY, (raw) => upsertCycle(userId, raw));
-  await mapWithConcurrency(sleepsPage.records, CONCURRENCY, (raw) => upsertSleep(userId, raw));
-  await mapWithConcurrency(recoveriesPage.records, CONCURRENCY, (raw) => upsertRecovery(userId, raw));
-  await mapWithConcurrency(workoutsPage.records, CONCURRENCY, (raw) => upsertWorkout(userId, raw));
+  // Sequencial de propósito: disparar a MESMA consulta/upsert do Prisma (mesmo shape,
+  // valores diferentes) em paralelo via Promise.all/mapWithConcurrency faz o driver
+  // adapter (@prisma/adapter-pg, Prisma 7.9.1) devolver registros como inexistentes que
+  // na verdade existem — confirmado isolando o caso (closeDayIfReady/findUnique por chave
+  // composta some sob concorrência, mesmo pra usuários diferentes). Com poucos itens por
+  // sincronização, sequencial custa no máximo alguns segundos a mais e é seguro.
+  await mapWithConcurrency(cyclesPage.records, 1, (raw) => upsertCycle(userId, raw));
+  await mapWithConcurrency(sleepsPage.records, 1, (raw) => upsertSleep(userId, raw));
+  await mapWithConcurrency(recoveriesPage.records, 1, (raw) => upsertRecovery(userId, raw));
+  await mapWithConcurrency(workoutsPage.records, 1, (raw) => upsertWorkout(userId, raw));
 
   await db.whoopConnection.update({
     where: { userId },
     data: { status: "UP_TO_DATE", lastSyncedAt: new Date() },
   });
 
-  await mapWithConcurrency(cyclesPage.records, CONCURRENCY, (raw) => closeDayIfReady(userId, String(raw.id)));
+  await mapWithConcurrency(cyclesPage.records, 1, (raw) => closeDayIfReady(userId, String(raw.id)));
 
   logger.info("whoop.sync.completed", {
     userId,

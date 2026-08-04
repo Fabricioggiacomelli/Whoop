@@ -8,7 +8,10 @@ import { upsertCycle, upsertRecovery, upsertSleep, upsertWorkout, closeDayIfRead
 import type { WhoopPaginated } from "./whoop.types";
 
 const MAX_PAGES_PER_INVOCATION = 20;
-const CLOSE_DAY_CONCURRENCY = 3;
+// Sequencial (1) de propósito: disparar o mesmo upsert/findUnique do Prisma em paralelo
+// (mesmo shape, valores diferentes) faz o driver adapter (@prisma/adapter-pg 7.9.1)
+// devolver registros como inexistentes sob concorrência — ver whoop.sync.ts.
+const CLOSE_DAY_CONCURRENCY = 1;
 
 type ResourceName = "cycle" | "recovery" | "sleep" | "workout";
 

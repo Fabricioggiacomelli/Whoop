@@ -166,62 +166,39 @@ export async function getLiveDailyRanking(date: Date): Promise<LiveDailyRow[]> {
   });
   const perfByUser = new Map(performances.map((p) => [p.userId, p]));
 
-  console.log("LIVE_RANKING_DEBUG", {
-    date: date.toISOString(),
-    usersCount: users.length,
-    userIds: users.map((u) => u.id),
-    performancesCount: performances.length,
-    performances: performances.map((p) => ({
-      userId: p.userId,
-      status: p.status,
-      competitiveDate: p.competitiveDate.toISOString(),
-      hasScore: p.dailyScores.length > 0,
-    })),
-  });
+  // Sequencial de propósito: disparar `previewDailyScore` (que internamente faz um
+  // findUnique por chave composta) em paralelo via Promise.all faz o driver adapter
+  // (@prisma/adapter-pg, Prisma 7.9.1) devolver "não encontrado" mesmo quando o registro
+  // existe — confirmado isolando o caso. Com só alguns usuários, sequencial é instantâneo.
+  const rows: (RankingRow & { inProgress: boolean })[] = [];
+  for (const user of users) {
+    const perf = perfByUser.get(user.id);
+    if (!perf) continue;
 
-  const rows = (
-    await Promise.all(
-      users.map(async (user) => {
-        const perf = perfByUser.get(user.id);
-        if (!perf) {
-          console.log("LIVE_RANKING_SKIP", { userId: user.id, reason: "no_performance" });
-          return null;
-        }
+    const closedScore = perf.dailyScores[0];
+    let points: number;
+    let inProgress: boolean;
 
-        const closedScore = perf.dailyScores[0];
-        let points: number;
-        let inProgress: boolean;
+    if ((perf.status === "CLOSED" || perf.status === "REPROCESSED") && closedScore) {
+      points = Number(closedScore.totalPoints);
+      inProgress = false;
+    } else {
+      const preview = await previewDailyScore(user.id, date);
+      if (!preview) continue;
+      points = preview.totalPoints;
+      inProgress = true;
+    }
 
-        if ((perf.status === "CLOSED" || perf.status === "REPROCESSED") && closedScore) {
-          points = Number(closedScore.totalPoints);
-          inProgress = false;
-        } else {
-          let preview: { totalPoints: number } | null = null;
-          try {
-            preview = await previewDailyScore(user.id, date);
-          } catch (error) {
-            console.log("LIVE_RANKING_PREVIEW_ERROR", { userId: user.id, message: (error as Error).message });
-            return null;
-          }
-          if (!preview) {
-            console.log("LIVE_RANKING_SKIP", { userId: user.id, reason: "preview_null" });
-            return null;
-          }
-          points = preview.totalPoints;
-          inProgress = true;
-        }
-
-        return {
-          userId: user.id,
-          nickname: user.profile?.nickname ?? user.email,
-          avatarUrl: user.profile?.avatarUrl ?? null,
-          colorHex: user.colorAssignment?.hex ?? null,
-          points,
-          inProgress,
-        };
-      }),
-    )
-  ).filter((r): r is Exclude<typeof r, null> => r !== null);
+    rows.push({
+      userId: user.id,
+      nickname: user.profile?.nickname ?? user.email,
+      avatarUrl: user.profile?.avatarUrl ?? null,
+      colorHex: user.colorAssignment?.hex ?? null,
+      points,
+      position: 0,
+      inProgress,
+    });
+  }
 
   const sorted = [...rows].sort((a, b) => b.points - a.points);
   return sorted.map((r, index) => ({ ...r, position: index + 1 }));
