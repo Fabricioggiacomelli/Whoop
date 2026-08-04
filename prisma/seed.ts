@@ -60,6 +60,13 @@ type Archetype = {
   overtrainer: boolean; // ignora recomendação de descanso com mais frequência
   alcoholTendency: number; // 0..1 chance de beber numa noite qualquer
   consistency: number; // 0..1 — quanto maior, mais estável é a rotina
+  // Multiplicadores de sensibilidade individual — cada atleta tem uma "história" fisiológica
+  // distinta e intencional, pra validar o motor de insights contra um ground truth conhecido
+  // (ver tests/unit/analysis e AGENTS.md spec §61). 1.0 = sensibilidade padrão/leve.
+  alcoholSensitivity: number;
+  caffeineLateSensitivity: number;
+  hrvFatigueSensitivity: number;
+  bedtimeIrregularityImpact: number;
 };
 
 const ARCHETYPES: Archetype[] = [
@@ -76,8 +83,14 @@ const ARCHETYPES: Archetype[] = [
     trainingFrequency: 0.62,
     weekendWarrior: false,
     overtrainer: false,
-    alcoholTendency: 0.08,
+    alcoholTendency: 0.16,
     consistency: 0.85,
+    // História: Rafa é muito sensível a álcool — mesmo consumo moderado prejudica bem mais
+    // seu sono e Recovery do dia seguinte do que os demais.
+    alcoholSensitivity: 2.6,
+    caffeineLateSensitivity: 0.8,
+    hrvFatigueSensitivity: 0.8,
+    bedtimeIrregularityImpact: 0.8,
   },
   {
     key: "bia",
@@ -94,6 +107,12 @@ const ARCHETYPES: Archetype[] = [
     overtrainer: false,
     alcoholTendency: 0.2,
     consistency: 0.55,
+    // História: o sono da Bia é muito mais prejudicado por cafeína à tarde/noite do que o
+    // dos demais — o mesmo hábito, pra ela, tem um efeito bem mais visível.
+    alcoholSensitivity: 0.9,
+    caffeineLateSensitivity: 2.8,
+    hrvFatigueSensitivity: 0.8,
+    bedtimeIrregularityImpact: 1.0,
   },
   {
     key: "theo",
@@ -110,6 +129,12 @@ const ARCHETYPES: Archetype[] = [
     overtrainer: true,
     alcoholTendency: 0.22,
     consistency: 0.45,
+    // História: o HRV do Theo cai visivelmente depois de 3+ dias seguidos de carga alta —
+    // um padrão de fadiga acumulada bem mais pronunciado que nos demais.
+    alcoholSensitivity: 1.0,
+    caffeineLateSensitivity: 0.8,
+    hrvFatigueSensitivity: 2.8,
+    bedtimeIrregularityImpact: 0.9,
   },
   {
     key: "manu",
@@ -126,6 +151,12 @@ const ARCHETYPES: Archetype[] = [
     overtrainer: false,
     alcoholTendency: 0.15,
     consistency: 0.4,
+    // História: o fator que mais afeta a Manu é irregularidade de horário de dormir — bem
+    // mais que álcool, cafeína ou carga de treino.
+    alcoholSensitivity: 0.9,
+    caffeineLateSensitivity: 0.9,
+    hrvFatigueSensitivity: 0.8,
+    bedtimeIrregularityImpact: 2.8,
   },
 ];
 
@@ -265,7 +296,10 @@ async function main() {
     let sleepDebtMin = 0;
     let fatigue = 0; // acumulador de carga recente (proxy simples de ACWR)
     let drankLastNight = false;
+    let caffeineLateYesterday = false;
+    let highLoadStreak = 0; // dias seguidos de Strain acima do recomendado — ver hrvFatigueSensitivity
     const recentStrains: number[] = [];
+    const recentBedtimesMinutes: number[] = []; // pra medir irregularidade de horário de dormir
 
     for (let day = 0; day < DAYS; day++) {
       const date = new Date(startDate.getTime() + day * DAY_MS);
@@ -274,11 +308,15 @@ async function main() {
 
       // Deriva de longo prazo: bons hábitos melhoram baseline lentamente ao longo das semanas.
       const weeklyImprovement = (archetype.consistency - 0.5) * 0.01;
-      hrv = clamp(hrv + weeklyImprovement + (rng() - 0.5) * 1.2, 30, 95);
-      rhr = clamp(rhr - weeklyImprovement * 0.6 + (rng() - 0.5) * 1.0, 40, 80);
+      // Fadiga acumulada de 3+ dias seguidos de carga alta bate no HRV — mais forte em quem
+      // tem `hrvFatigueSensitivity` alta (história do Theo).
+      const hrvFatigueHit = highLoadStreak >= 3 ? (highLoadStreak - 2) * 1.1 * archetype.hrvFatigueSensitivity : 0;
+      hrv = clamp(hrv + weeklyImprovement - hrvFatigueHit + (rng() - 0.5) * 1.2, 30, 95);
+      rhr = clamp(rhr - weeklyImprovement * 0.6 + hrvFatigueHit * 0.3 + (rng() - 0.5) * 1.0, 40, 80);
 
-      // ── Sono (afetado por álcool da noite anterior e dívida acumulada) ───────────────
-      const alcoholPenalty = drankLastNight ? 0.12 + rng() * 0.1 : 0;
+      // ── Sono (afetado por álcool/cafeína da noite anterior e dívida acumulada) ────────
+      const alcoholPenalty = drankLastNight ? (0.12 + rng() * 0.1) * archetype.alcoholSensitivity : 0;
+      const caffeinePenalty = caffeineLateYesterday ? (0.05 + rng() * 0.04) * archetype.caffeineLateSensitivity : 0;
       const consistencyJitter = (1 - archetype.consistency) * (rng() - 0.5) * 90;
       const sleepMinutes = clamp(
         archetype.baselineSleepNeedMin * (1 - alcoholPenalty) - sleepDebtMin * 0.15 + consistencyJitter,
@@ -288,26 +326,45 @@ async function main() {
       const sleepNeedMin = Math.round(archetype.baselineSleepNeedMin + (rng() - 0.5) * 20);
       sleepDebtMin = clamp(sleepDebtMin + (sleepNeedMin - sleepMinutes) * 0.3, 0, 300);
 
-      const sleepEfficiencyPct = clamp(88 - alcoholPenalty * 60 + (rng() - 0.5) * 8, 55, 99);
-      const sleepPerformancePct = clamp((sleepMinutes / sleepNeedMin) * 100 - alcoholPenalty * 15, 30, 100);
+      const sleepEfficiencyPct = clamp(88 - alcoholPenalty * 60 - caffeinePenalty * 55 + (rng() - 0.5) * 8, 55, 99);
+      const sleepPerformancePct = clamp(
+        (sleepMinutes / sleepNeedMin) * 100 - alcoholPenalty * 15 - caffeinePenalty * 20,
+        30,
+        100,
+      );
       const remMinutes = Math.round(sleepMinutes * clamp(0.2 - alcoholPenalty * 0.4 + rng() * 0.05, 0.05, 0.28));
       const deepMinutes = Math.round(sleepMinutes * clamp(0.15 + rng() * 0.05, 0.08, 0.22));
       const lightMinutes = Math.max(0, Math.round(sleepMinutes - remMinutes - deepMinutes - 20));
-      const disturbanceCount = Math.round((drankLastNight ? 3 : 1) + rng() * 4);
+      const disturbanceCount = Math.round((drankLastNight ? 3 : 1) + (caffeineLateYesterday ? 1 : 0) + rng() * 4);
 
-      // Ciclo dorme na "noite anterior" à data competitiva e acorda na manhã da data.
-      const sleepStart = new Date(date.getTime() - DAY_MS + 22 * 60 * 60 * 1000 - Math.round(rng() * 60 * 60 * 1000));
+      // Ciclo dorme na "noite anterior" à data competitiva e acorda na manhã da data. O
+      // jitter do horário de dormir é ampliado por `bedtimeIrregularityImpact` — história da
+      // Manu é ter um horário de dormir bem mais errático que os demais.
+      const bedtimeJitterMs =
+        Math.round(rng() * 60 * 60 * 1000) * (1 + (1 - archetype.consistency) * archetype.bedtimeIrregularityImpact);
+      const sleepStart = new Date(date.getTime() - DAY_MS + 22 * 60 * 60 * 1000 - bedtimeJitterMs);
       const sleepEnd = new Date(sleepStart.getTime() + sleepMinutes * 60 * 1000);
 
-      // ── Recovery (afetada por sono da noite + fadiga acumulada) ──────────────────────
+      const bedtimeMinutesOfDay = (sleepStart.getUTCHours() * 60 + sleepStart.getUTCMinutes() + 1440) % 1440;
+      const usualBedtime =
+        recentBedtimesMinutes.length > 0
+          ? recentBedtimesMinutes.reduce((sum, m) => sum + m, 0) / recentBedtimesMinutes.length
+          : bedtimeMinutesOfDay;
+      const bedtimeDeviationMin = Math.min(180, Math.abs(bedtimeMinutesOfDay - usualBedtime));
+      recentBedtimesMinutes.push(bedtimeMinutesOfDay);
+      if (recentBedtimesMinutes.length > 14) recentBedtimesMinutes.shift();
+
+      // ── Recovery (afetada por sono da noite + fadiga acumulada + regularidade do horário) ──
       const hrvRelative = hrv / archetype.baselineHrv;
       const rhrRelative = archetype.baselineRhr / rhr;
+      const bedtimeIrregularityPenalty = (bedtimeDeviationMin / 60) * 1.8 * archetype.bedtimeIrregularityImpact;
       const recoveryRaw =
         50 +
         (hrvRelative - 1) * 120 +
         (rhrRelative - 1) * 80 +
         (sleepPerformancePct - 75) * 0.35 -
-        fatigue * 6 +
+        fatigue * 6 -
+        bedtimeIrregularityPenalty +
         (rng() - 0.5) * 8;
       const recoveryScore = clamp(recoveryRaw, 4, 99);
       const recoveryBand = recoveryScore >= 67 ? "green" : recoveryScore >= 34 ? "yellow" : "red";
@@ -338,6 +395,7 @@ async function main() {
         0,
         3,
       );
+      highLoadStreak = strain > recommendedMax ? highLoadStreak + 1 : 0;
 
       // ── Journal / hábitos ─────────────────────────────────────────────────────────
       const willDrink = rng() < archetype.alcoholTendency * (isWeekend ? 1.6 : 0.6);
@@ -368,6 +426,7 @@ async function main() {
         "NONE",
         "AT_NIGHT",
       ]);
+      caffeineLateYesterday = caffeineValue === "UNTIL_AFTERNOON" || caffeineValue === "AT_NIGHT";
       const boolValue = (chance: number) => (rng() < chance ? "YES" : rng() < 0.9 ? "NO" : "NOT_APPLICABLE");
 
       // ── Persistência ─────────────────────────────────────────────────────────────

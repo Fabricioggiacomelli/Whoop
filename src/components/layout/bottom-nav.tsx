@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Trophy, TrendingUp, Target, CircleUser } from "lucide-react";
+import { Home, Trophy, Sparkles, Target, CircleUser } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/home", label: "Home", icon: Home },
   { href: "/ranking", label: "Ranking", icon: Trophy },
-  { href: "/evolucao", label: "Evolução", icon: TrendingUp },
+  { href: "/analysis", label: "Análise", icon: Sparkles },
   { href: "/metas", label: "Metas", icon: Target },
   { href: "/perfil", label: "Perfil", icon: CircleUser },
 ] as const;

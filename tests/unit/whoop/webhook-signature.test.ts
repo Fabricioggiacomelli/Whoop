@@ -11,7 +11,9 @@ function sign(timestamp: string, rawBody: string, secret = SECRET) {
 }
 
 beforeAll(() => {
-  process.env.WHOOP_WEBHOOK_SECRET = SECRET;
+  // verifyWebhookSignature lê WHOOP_CLIENT_SECRET (mesmo segredo do OAuth, reaproveitado
+  // pra assinar webhooks) — não existe WHOOP_WEBHOOK_SECRET separado.
+  process.env.WHOOP_CLIENT_SECRET = SECRET;
 });
 
 describe("verifyWebhookSignature", () => {
