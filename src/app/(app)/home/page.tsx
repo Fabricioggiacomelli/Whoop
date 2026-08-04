@@ -61,6 +61,7 @@ export default async function HomePage() {
 
   return (
     <div className="flex flex-col gap-5">
+      <h1 className="sr-only">Home</h1>
       <header className="flex items-center gap-3">
         <span
           className="size-11 shrink-0 rounded-full border border-apex-border"
@@ -69,9 +70,9 @@ export default async function HomePage() {
         />
         <div>
           <p className="text-sm text-apex-text-secondary">Olá,</p>
-          <h1 className="text-lg font-semibold text-apex-text-primary">
+          <h2 className="text-lg font-semibold text-apex-text-primary">
             {user.profile?.displayName ?? user.email}
-          </h1>
+          </h2>
         </div>
       </header>
 
@@ -226,8 +227,10 @@ export default async function HomePage() {
                 className="flex flex-col items-center gap-1 rounded-lg border border-apex-border bg-apex-surface-raised px-3 py-2.5"
                 title={a.name}
               >
-                <span className="text-xl">{a.icon}</span>
-                <span className="max-w-16 truncate text-center text-[11px] text-apex-text-secondary">
+                <span className="text-xl" aria-hidden="true">
+                  {a.icon}
+                </span>
+                <span className="max-w-16 truncate text-center text-xs text-apex-text-secondary">
                   {a.name}
                 </span>
               </div>

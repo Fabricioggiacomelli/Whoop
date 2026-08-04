@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 import { updateProfileAction, type ProfileState } from "./actions";
 
@@ -33,45 +34,53 @@ export function ProfileForm({
     <form action={formAction} className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="displayName">Nome</Label>
+          <Label htmlFor="displayName">
+            Nome <span className="text-apex-recovery-red">*</span>
+          </Label>
           <Input id="displayName" name="displayName" defaultValue={displayName} required />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="nickname">Apelido</Label>
+          <Label htmlFor="nickname">
+            Apelido <span className="text-apex-recovery-red">*</span>
+          </Label>
           <Input id="nickname" name="nickname" defaultValue={nickname} required maxLength={20} />
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="bio">Frase curta</Label>
-        <Input id="bio" name="bio" defaultValue={bio} maxLength={140} placeholder="Opcional" />
+        <Label htmlFor="bio">
+          Frase curta <span className="text-apex-text-tertiary">(opcional)</span>
+        </Label>
+        <Input id="bio" name="bio" defaultValue={bio} maxLength={140} />
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="birthDate">Nascimento</Label>
+        <Label htmlFor="birthDate">
+          Nascimento <span className="text-apex-text-tertiary">(opcional)</span>
+        </Label>
         <Input id="birthDate" name="birthDate" type="date" defaultValue={birthDate} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="weightKg">Peso (kg)</Label>
+          <Label htmlFor="weightKg">
+            Peso (kg) <span className="text-apex-text-tertiary">(opcional)</span>
+          </Label>
           <Input id="weightKg" name="weightKg" type="number" step="0.1" defaultValue={weightKg} />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor="heightCm">Altura (cm)</Label>
+          <Label htmlFor="heightCm">
+            Altura (cm) <span className="text-apex-text-tertiary">(opcional)</span>
+          </Label>
           <Input id="heightCm" name="heightCm" type="number" step="1" defaultValue={heightCm} />
         </div>
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="goalText">Objetivo pessoal</Label>
-        <textarea
-          id="goalText"
-          name="goalText"
-          maxLength={280}
-          defaultValue={goalText}
-          className="min-h-20 rounded-lg border border-apex-border bg-apex-surface-raised px-3.5 py-2.5 text-sm text-apex-text-primary placeholder:text-apex-text-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apex-accent"
-        />
+        <Label htmlFor="goalText">
+          Objetivo pessoal <span className="text-apex-text-tertiary">(opcional)</span>
+        </Label>
+        <Textarea id="goalText" name="goalText" maxLength={280} defaultValue={goalText} />
       </div>
 
       {state.error ? (

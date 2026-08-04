@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 import { activateRecoveryModeAction, type RecoveryModeState } from "./actions";
 
@@ -32,18 +33,13 @@ export function RecoveryModeForm() {
     <form action={formAction} className="flex flex-col gap-3">
       <div className="flex flex-col gap-2">
         <Label htmlFor="type">Tipo</Label>
-        <select
-          id="type"
-          name="type"
-          defaultValue="GENERAL_RECOVERY"
-          className="h-11 rounded-lg border border-apex-border bg-apex-surface-raised px-3 text-sm text-apex-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apex-accent"
-        >
+        <Select id="type" name="type" defaultValue="GENERAL_RECOVERY">
           {TYPE_OPTIONS.map((t) => (
             <option key={t.value} value={t.value}>
               {t.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -73,13 +69,17 @@ export function RecoveryModeForm() {
         <Input id="notes" name="notes" />
       </div>
 
-      {state.error ? <p className="text-sm text-apex-recovery-red">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-apex-recovery-red">
+          {state.error}
+        </p>
+      ) : null}
 
       <div className="flex gap-2">
-        <Button type="submit" variant="accent" size="sm" disabled={isPending}>
+        <Button type="submit" variant="accent" disabled={isPending}>
           {isPending ? "Ativando…" : "Ativar"}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
           Cancelar
         </Button>
       </div>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ChevronDown } from "lucide-react";
 
 import { db } from "@/server/db";
 import { todayInAppTimezone as todayLocalMidnight } from "@/lib/timezone";
@@ -35,7 +35,7 @@ export default async function JournalPage({
   });
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {!alreadySubmitted ? (
         <JournalFlow habits={habits} />
       ) : (
@@ -53,11 +53,15 @@ export default async function JournalPage({
         <div className="flex flex-col gap-2">
           <h2 className="text-sm font-medium text-apex-text-secondary">Histórico</h2>
           {history.map((entry) => (
-            <details key={entry.id} className="rounded-lg border border-apex-border bg-apex-surface">
-              <summary className="cursor-pointer list-none px-3.5 py-2.5 text-sm text-apex-text-primary">
+            <details key={entry.id} className="group rounded-lg border border-apex-border bg-apex-surface">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3.5 text-sm text-apex-text-primary">
                 {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
                   entry.referenceDate,
                 )}
+                <ChevronDown
+                  className="size-4 shrink-0 text-apex-text-tertiary transition-transform duration-150 group-open:rotate-180"
+                  aria-hidden="true"
+                />
               </summary>
               <div className="flex flex-col gap-1 border-t border-apex-border px-3.5 py-2.5">
                 {entry.answers.map((a) => {

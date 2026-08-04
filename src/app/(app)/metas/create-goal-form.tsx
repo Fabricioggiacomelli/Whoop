@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 
 import { createGoalAction, type GoalFormState } from "./actions";
 
@@ -41,18 +42,13 @@ export function CreateGoalForm() {
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
           <Label htmlFor="category">Categoria</Label>
-          <select
-            id="category"
-            name="category"
-            defaultValue="OTHER"
-            className="h-11 rounded-lg border border-apex-border bg-apex-surface-raised px-3 text-sm text-apex-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-apex-accent"
-          >
+          <Select id="category" name="category" defaultValue="OTHER">
             {CATEGORY_OPTIONS.map((c) => (
               <option key={c.value} value={c.value}>
                 {c.label}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="cycleLengthDays">Ciclo (dias)</Label>
@@ -67,13 +63,17 @@ export function CreateGoalForm() {
         <Input id="targetValue" name="targetValue" type="number" step="0.1" placeholder="Opcional" />
       </div>
 
-      {state.error ? <p className="text-sm text-apex-recovery-red">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-apex-recovery-red">
+          {state.error}
+        </p>
+      ) : null}
 
       <div className="flex gap-2">
-        <Button type="submit" variant="accent" size="sm" disabled={isPending}>
+        <Button type="submit" variant="accent" disabled={isPending}>
           {isPending ? "Criando…" : "Criar meta"}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
           Cancelar
         </Button>
       </div>

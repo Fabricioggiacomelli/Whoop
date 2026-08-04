@@ -32,13 +32,13 @@ export default async function EvolucaoPage({
     <div className="flex flex-col gap-5">
       <h1 className="text-xl font-semibold text-apex-text-primary">Evolução</h1>
 
-      <div className="flex gap-1.5 overflow-x-auto">
+      <div className="flex gap-2 overflow-x-auto">
         {WINDOWS.map((w) => (
           <Link
             key={w.value}
             href={`/evolucao?window=${w.value}`}
             className={cn(
-              "shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+              "flex min-h-11 shrink-0 items-center rounded-lg border px-3.5 text-xs font-medium transition-colors duration-150",
               selected.value === w.value
                 ? "border-apex-accent bg-apex-accent/10 text-apex-text-primary"
                 : "border-apex-border text-apex-text-secondary",

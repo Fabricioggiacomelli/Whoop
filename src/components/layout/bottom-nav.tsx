@@ -31,7 +31,7 @@ export function BottomNav() {
                 href={href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "flex min-h-16 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors duration-150",
+                  "flex min-h-16 flex-col items-center justify-center gap-1 text-xs font-medium transition-colors duration-150",
                   isActive ? "text-apex-text-primary" : "text-apex-text-tertiary",
                 )}
               >

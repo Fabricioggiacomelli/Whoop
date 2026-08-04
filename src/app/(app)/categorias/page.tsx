@@ -76,7 +76,7 @@ export default async function CategoriasPage() {
   ]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <h1 className="text-xl font-semibold text-apex-text-primary">Categorias</h1>
 
       <section className="grid grid-cols-2 gap-3">
@@ -107,7 +107,9 @@ export default async function CategoriasPage() {
             {groupAchievements.map((grant) => (
               <Card key={grant.id}>
                 <CardContent className="flex flex-col items-center gap-1.5 py-4 text-center">
-                  <span className="text-2xl">{grant.achievement.icon}</span>
+                  <span className="text-2xl" aria-hidden="true">
+                    {grant.achievement.icon}
+                  </span>
                   <p className="text-sm font-medium text-apex-text-primary">{grant.achievement.name}</p>
                   <p className="text-xs text-apex-text-tertiary">{grant.user.profile?.nickname}</p>
                 </CardContent>

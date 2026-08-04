@@ -48,34 +48,37 @@ export function SuggestionCard({
               />
             </div>
             <input type="hidden" name="cycleLengthDays" value={14} />
-            {state.error ? <p className="text-sm text-apex-recovery-red">{state.error}</p> : null}
+            {state.error ? (
+              <p role="alert" className="text-sm text-apex-recovery-red">
+                {state.error}
+              </p>
+            ) : null}
             <div className="flex gap-2">
-              <Button type="submit" variant="accent" size="sm" disabled={isPending}>
+              <Button type="submit" variant="accent" disabled={isPending}>
                 {isPending ? "Aprovando…" : "Confirmar"}
               </Button>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
+              <Button type="button" variant="ghost" onClick={() => setEditing(false)}>
                 Cancelar
               </Button>
             </div>
           </form>
         ) : (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <form action={formAction}>
               <input type="hidden" name="suggestionId" value={suggestion.id} />
               <input type="hidden" name="title" value={suggestion.title} />
               <input type="hidden" name="targetValue" value={suggestion.targetValue ?? ""} />
               <input type="hidden" name="cycleLengthDays" value={14} />
-              <Button type="submit" variant="accent" size="sm" disabled={isPending}>
+              <Button type="submit" variant="accent" disabled={isPending}>
                 {isPending ? "Aprovando…" : "Aprovar"}
               </Button>
             </form>
-            <Button type="button" variant="outline" size="sm" onClick={() => setEditing(true)}>
+            <Button type="button" variant="outline" onClick={() => setEditing(true)}>
               Editar
             </Button>
             <Button
               type="button"
               variant="ghost"
-              size="sm"
               className="text-apex-recovery-red"
               disabled={isRejecting}
               onClick={() => startRejectTransition(() => rejectSuggestionAction(suggestion.id))}

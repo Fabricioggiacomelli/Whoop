@@ -6,6 +6,7 @@ import { requireUser } from "@/server/services/auth-guard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/ui/submit-button";
 
 import { getActiveRecoveryMode, getRecoveryModeHistory } from "@/server/services/recoveryMode.service";
 
@@ -85,6 +86,7 @@ export default async function PerfilPage({
 
   return (
     <div className="flex flex-col gap-5">
+      <h1 className="sr-only">Perfil</h1>
       <header className="flex items-center gap-3">
         <span
           className="size-12 shrink-0 rounded-full border border-apex-border"
@@ -92,9 +94,9 @@ export default async function PerfilPage({
           aria-hidden="true"
         />
         <div>
-          <h1 className="text-lg font-semibold text-apex-text-primary">
+          <h2 className="text-lg font-semibold text-apex-text-primary">
             {user.profile?.displayName}
-          </h1>
+          </h2>
           <p className="text-sm text-apex-text-secondary">@{user.profile?.nickname}</p>
         </div>
       </header>
@@ -142,26 +144,26 @@ export default async function PerfilPage({
           {isConnected ? (
             isLive ? (
               <form action={disconnectWhoopAction}>
-                <Button type="submit" variant="outline" size="sm">
+                <SubmitButton variant="outline" pendingText="Desconectando…">
                   Desconectar
-                </Button>
+                </SubmitButton>
               </form>
             ) : (
               <form action={mockDisconnectWhoopAction}>
-                <Button type="submit" variant="outline" size="sm">
+                <SubmitButton variant="outline" pendingText="Desconectando…">
                   Desconectar
-                </Button>
+                </SubmitButton>
               </form>
             )
           ) : isLive ? (
-            <Button asChild variant="accent" size="sm">
+            <Button asChild variant="accent">
               <Link href="/api/whoop/oauth/start">Conectar WHOOP</Link>
             </Button>
           ) : (
             <form action={mockConnectWhoopAction}>
-              <Button type="submit" variant="accent" size="sm">
+              <SubmitButton variant="accent" pendingText="Conectando…">
                 Conectar WHOOP
-              </Button>
+              </SubmitButton>
             </form>
           )}
         </CardContent>
@@ -230,9 +232,9 @@ export default async function PerfilPage({
       </Card>
 
       <form action={signOutAction}>
-        <Button type="submit" variant="ghost" className="w-full text-apex-recovery-red">
+        <SubmitButton variant="ghost" className="w-full text-apex-recovery-red" pendingText="Saindo…">
           Sair da conta
-        </Button>
+        </SubmitButton>
       </form>
     </div>
   );

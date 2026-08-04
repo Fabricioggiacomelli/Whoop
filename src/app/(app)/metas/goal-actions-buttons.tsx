@@ -10,12 +10,11 @@ export function GoalActionButtons({ goalId, status }: { goalId: string; status: 
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       {status === "ACTIVE" ? (
         <Button
           type="button"
           variant="ghost"
-          size="sm"
           disabled={isPending}
           onClick={() => startTransition(() => pauseGoalAction(goalId))}
         >
@@ -26,7 +25,6 @@ export function GoalActionButtons({ goalId, status }: { goalId: string; status: 
         <Button
           type="button"
           variant="ghost"
-          size="sm"
           disabled={isPending}
           onClick={() => startTransition(() => resumeGoalAction(goalId))}
         >
@@ -37,7 +35,6 @@ export function GoalActionButtons({ goalId, status }: { goalId: string; status: 
         <Button
           type="button"
           variant="ghost"
-          size="sm"
           disabled={isPending}
           onClick={() => startTransition(() => completeGoalAction(goalId))}
         >
@@ -47,7 +44,6 @@ export function GoalActionButtons({ goalId, status }: { goalId: string; status: 
       <Button
         type="button"
         variant="ghost"
-        size="sm"
         className="text-apex-recovery-red"
         disabled={isPending}
         onClick={() => startTransition(() => deleteGoalAction(goalId))}

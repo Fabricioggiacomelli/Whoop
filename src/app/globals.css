@@ -11,7 +11,9 @@
   --apex-border: #242933;
   --apex-text-primary: #f5f6f8;
   --apex-text-secondary: #8a8f99;
-  --apex-text-tertiary: #565c68;
+  /* Contraste verificado >= 4.5:1 (WCAG AA) contra apex-bg, apex-surface e
+     apex-surface-raised — o tom anterior (#565c68) ficava em ~2.5-3:1. */
+  --apex-text-tertiary: #828892;
 
   --apex-recovery-green: #3ddc84;
   --apex-recovery-yellow: #f5c542;

@@ -202,7 +202,9 @@ function ConquistasScreen({ data }: { data: DisplayData["conquistas"] }) {
       <div className="grid grid-cols-4 gap-4">
         {data.map((a, i) => (
           <div key={i} className="flex flex-col items-center gap-2 rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
-            <span className="text-4xl">{a.icon}</span>
+            <span className="text-4xl" aria-hidden="true">
+              {a.icon}
+            </span>
             <p className="text-sm font-medium text-apex-text-primary">{a.name}</p>
             <div className="flex items-center gap-1.5">
               <Avatar colorHex={a.colorHex} />

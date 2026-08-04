@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
 
 const PULL_THRESHOLD = 70;
 const MAX_PULL = 110;
@@ -15,12 +15,13 @@ const MAX_PULL = 110;
 export function PullToRefresh({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [pullDistance, setPullDistance] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [isRefreshPending, startRefreshTransition] = useTransition();
   const startY = useRef<number | null>(null);
   const pulling = useRef(false);
 
   function onTouchStart(e: React.TouchEvent) {
-    if (window.scrollY > 0 || refreshing) return;
+    if (window.scrollY > 0 || syncing || isRefreshPending) return;
     startY.current = e.touches[0]?.clientY ?? null;
     pulling.current = true;
   }
@@ -42,18 +43,24 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
     startY.current = null;
 
     if (pullDistance >= PULL_THRESHOLD) {
-      setRefreshing(true);
+      setSyncing(true);
       try {
         await fetch("/api/whoop/sync-now", { method: "POST" });
       } catch {
         // Puxar-para-atualizar não deve travar a UI se a sincronização falhar.
       }
-      router.refresh();
-      setTimeout(() => setRefreshing(false), 400);
+      setSyncing(false);
+      // `startTransition` mantém isPending=true até o RSC recarregar e renderizar de
+      // verdade — diferente de um setTimeout fixo, que podia esconder o indicador antes
+      // dos dados atualizados terem realmente aparecido na tela.
+      startRefreshTransition(() => {
+        router.refresh();
+      });
     }
     setPullDistance(0);
   }
 
+  const refreshing = syncing || isRefreshPending;
   const indicatorHeight = refreshing ? 56 : pullDistance;
 
   return (

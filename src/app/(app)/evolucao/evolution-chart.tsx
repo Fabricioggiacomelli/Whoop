@@ -73,14 +73,14 @@ export function EvolutionChart({ points }: { points: EvolutionPoint[] }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-2">
         {METRICS.map((m) => (
           <button
             key={m.key}
             type="button"
             onClick={() => setMetric(m.key)}
             className={cn(
-              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              "flex min-h-11 items-center rounded-full border px-3.5 text-xs font-medium transition-colors duration-150",
               metric === m.key
                 ? "border-apex-accent bg-apex-accent/10 text-apex-text-primary"
                 : "border-apex-border text-apex-text-secondary hover:text-apex-text-primary",

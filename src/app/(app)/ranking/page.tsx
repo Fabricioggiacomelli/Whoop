@@ -100,7 +100,7 @@ export default async function RankingPage({
     const forwardHref = `/ranking?scope=daily&day=${dailyPeriodKey(addDaysLocal(selectedDate, 1))}`;
 
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <h1 className="text-xl font-semibold text-apex-text-primary">Ranking</h1>
         <ScopeTabs current={scopeKey} />
 
@@ -114,30 +114,30 @@ export default async function RankingPage({
               {isToday ? <Badge variant="recoveryYellow">Em andamento</Badge> : null}
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             {canGoBack ? (
               <Link
                 href={backHref}
-                className="flex size-8 items-center justify-center rounded-lg border border-apex-border text-apex-text-secondary transition-colors hover:text-apex-text-primary"
+                className="flex size-11 items-center justify-center rounded-lg border border-apex-border text-apex-text-secondary transition-colors hover:text-apex-text-primary"
                 aria-label="Dia anterior"
               >
                 <ChevronLeft className="size-4" />
               </Link>
             ) : (
-              <span className="flex size-8 items-center justify-center rounded-lg border border-apex-border text-apex-text-tertiary/40">
+              <span className="flex size-11 items-center justify-center rounded-lg border border-apex-border text-apex-text-tertiary/40">
                 <ChevronLeft className="size-4" />
               </span>
             )}
             {canGoForward ? (
               <Link
                 href={forwardHref}
-                className="flex size-8 items-center justify-center rounded-lg border border-apex-border text-apex-text-secondary transition-colors hover:text-apex-text-primary"
+                className="flex size-11 items-center justify-center rounded-lg border border-apex-border text-apex-text-secondary transition-colors hover:text-apex-text-primary"
                 aria-label="Próximo dia"
               >
                 <ChevronRight className="size-4" />
               </Link>
             ) : (
-              <span className="flex size-8 items-center justify-center rounded-lg border border-apex-border text-apex-text-tertiary/40">
+              <span className="flex size-11 items-center justify-center rounded-lg border border-apex-border text-apex-text-tertiary/40">
                 <ChevronRight className="size-4" />
               </span>
             )}
@@ -174,7 +174,7 @@ export default async function RankingPage({
 
   if (!periodKey) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-5">
         <h1 className="text-xl font-semibold text-apex-text-primary">Ranking</h1>
         <ScopeTabs current={scopeKey} />
         <Card className="p-5 text-sm text-apex-text-secondary">
@@ -195,7 +195,7 @@ export default async function RankingPage({
   const leaderPoints = rows[0]?.points ?? 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-5">
       <h1 className="text-xl font-semibold text-apex-text-primary">Ranking</h1>
       <ScopeTabs current={scopeKey} />
 

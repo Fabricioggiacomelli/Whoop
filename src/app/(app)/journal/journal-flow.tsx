@@ -38,7 +38,14 @@ export function JournalFlow({ habits }: { habits: HabitCard[] }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex gap-1.5">
+      <div
+        className="flex gap-1.5"
+        role="progressbar"
+        aria-label={`Progresso do journal — pergunta ${Math.min(step + 1, habits.length)} de ${habits.length}`}
+        aria-valuemin={0}
+        aria-valuemax={habits.length}
+        aria-valuenow={isConfirming ? habits.length : step}
+      >
         {habits.map((h, i) => (
           <div
             key={h.id}

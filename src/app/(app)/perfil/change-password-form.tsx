@@ -51,14 +51,18 @@ export function ChangePasswordForm() {
         />
       </div>
 
-      {state.error ? <p className="text-sm text-apex-recovery-red">{state.error}</p> : null}
+      {state.error ? (
+        <p role="alert" className="text-sm text-apex-recovery-red">
+          {state.error}
+        </p>
+      ) : null}
       {state.success ? <p className="text-sm text-apex-recovery-green">Senha atualizada.</p> : null}
 
       <div className="flex gap-2">
-        <Button type="submit" variant="accent" size="sm" disabled={isPending}>
+        <Button type="submit" variant="accent" disabled={isPending}>
           {isPending ? "Salvando…" : "Salvar nova senha"}
         </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
           Cancelar
         </Button>
       </div>
