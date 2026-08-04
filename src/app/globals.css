@@ -64,6 +64,23 @@ body {
   font-feature-settings: "tnum" 1;
 }
 
+/* Bug conhecido do Safari/iOS: o texto de input[type=date] por extenso (locale pt-BR,
+   "25 de ago. de 2005") ignora a largura da caixa e vaza pra fora, mesmo com o input em
+   largura total — o pseudo-elemento interno não encolhe/quebra como texto normal. */
+input[type="date"] {
+  min-width: 0;
+}
+
+input[type="date"]::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
+}
+
+input[type="date"]::-webkit-datetime-edit {
+  min-width: 0;
+  max-width: 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
