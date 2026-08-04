@@ -1,6 +1,7 @@
 import { startOfWeek } from "date-fns";
 
 import { db } from "@/server/db";
+import { todayInAppTimezone } from "@/lib/timezone";
 import { dailyPeriodKey, getPreviousPeriodKey, getRanking } from "@/server/services/ranking.service";
 import type { ScoreCategory } from "@/generated/prisma/enums";
 
@@ -223,10 +224,8 @@ async function getPitWall() {
 
       const connection = await db.whoopConnection.findUnique({ where: { userId: a.userId } });
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
       const todayJournal = await db.journalEntry.findUnique({
-        where: { userId_referenceDate: { userId: a.userId, referenceDate: todayStart } },
+        where: { userId_referenceDate: { userId: a.userId, referenceDate: todayInAppTimezone() } },
       });
 
       const overStrain = Boolean(

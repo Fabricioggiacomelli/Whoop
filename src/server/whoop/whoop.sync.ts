@@ -1,5 +1,6 @@
 import { db } from "@/server/db";
 import { logger } from "@/lib/logger";
+import { calendarDateInAppTimezone } from "@/lib/timezone";
 import { computeDailyScore } from "@/server/scoring/engine";
 import { recomputeRankingsForDate } from "@/server/services/ranking.service";
 import { generateRoastForUser } from "@/server/services/roast.service";
@@ -18,24 +19,20 @@ import {
 import type { WhoopCycleRaw, WhoopRecoveryRaw, WhoopSleepRaw, WhoopWorkoutRaw } from "./whoop.types";
 
 /**
- * Dia competitivo = a data (meia-noite local) do horário em que o usuário ACORDOU
+ * Dia competitivo = a data (meia-noite no fuso do app) do horário em que o usuário ACORDOU
  * (fim do sono principal) — nunca "início do ciclo + 1 dia": um ciclo dura da hora de
  * dormir até a PRÓXIMA hora de dormir (~24h), então "início + 1 dia" cai perto da próxima
  * noite, não da manhã seguinte. Isso rotulava sistematicamente todo dia fechado com a data
  * de amanhã (ex: acordar às 11h de terça virava "quarta-feira" no app).
  */
 function competitiveDateForWakeUp(wokeUpAt: Date): Date {
-  const date = new Date(wokeUpAt);
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return calendarDateInAppTimezone(wokeUpAt);
 }
 
 /** Antes do sono principal existir, não há horário de acordar ainda — usa o início do
  * ciclo só como marcador temporário para a linha AWAITING_SLEEP; nunca fecha com essa data. */
 function placeholderCompetitiveDate(startedAt: Date): Date {
-  const date = new Date(startedAt);
-  date.setHours(0, 0, 0, 0);
-  return date;
+  return calendarDateInAppTimezone(startedAt);
 }
 
 async function recordRawEvent(userId: string, resource: string, payload: unknown, source: "SYNC" | "HISTORICAL" = "SYNC") {

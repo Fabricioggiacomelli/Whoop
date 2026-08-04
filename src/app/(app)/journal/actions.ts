@@ -3,15 +3,10 @@
 import { redirect } from "next/navigation";
 
 import { db } from "@/server/db";
+import { todayInAppTimezone as todayLocalMidnight } from "@/lib/timezone";
 import { requireUser } from "@/server/services/auth-guard";
 
 export type SubmitJournalState = { error: string | null };
-
-function todayLocalMidnight(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 export async function submitJournalAction(
   answers: Record<string, string>,

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { CheckCircle2 } from "lucide-react";
 
 import { db } from "@/server/db";
+import { todayInAppTimezone as todayLocalMidnight } from "@/lib/timezone";
 import { requireUser } from "@/server/services/auth-guard";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -9,12 +10,6 @@ import { JournalFlow } from "./journal-flow";
 import { HABIT_OPTIONS } from "./habit-options";
 
 export const metadata: Metadata = { title: "Journal" };
-
-function todayLocalMidnight(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
 
 export default async function JournalPage({
   searchParams,

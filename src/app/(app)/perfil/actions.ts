@@ -8,6 +8,7 @@ import { requireUser } from "@/server/services/auth-guard";
 import { signOut } from "@/server/auth";
 import { revokeConnection } from "@/server/whoop/whoop.auth";
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { todayInAppTimezone } from "@/lib/timezone";
 
 export type ProfileState = { error: string | null; success?: boolean };
 
@@ -204,8 +205,7 @@ export async function activateRecoveryModeAction(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  const startDate = new Date();
-  startDate.setHours(0, 0, 0, 0);
+  const startDate = todayInAppTimezone();
 
   await db.recoveryMode.create({
     data: {

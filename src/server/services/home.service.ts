@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { todayInAppTimezone } from "@/lib/timezone";
 import { dailyPeriodKey, weeklyPeriodKey } from "@/server/services/ranking.service";
 import { getLatestRoast } from "@/server/services/roast.service";
 
@@ -26,12 +27,6 @@ export type HomeSummary = {
   journalPendingToday: boolean;
 };
 
-function todayLocalMidnight(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
 /** Sequência de dias fechados até o mais recente — usada mesmo quando hoje ainda está em
  * andamento (a sequência "conta" até ontem enquanto hoje não fecha). */
 async function getLatestStreak(userId: string): Promise<number> {
@@ -48,7 +43,7 @@ async function getLatestStreak(userId: string): Promise<number> {
 }
 
 export async function getHomeSummary(userId: string): Promise<HomeSummary> {
-  const today = todayLocalMidnight();
+  const today = todayInAppTimezone();
 
   const [performance, roast, recentAchievements, todayJournal, streak, strainRec] = await Promise.all([
     db.dailyPerformance.findFirst({

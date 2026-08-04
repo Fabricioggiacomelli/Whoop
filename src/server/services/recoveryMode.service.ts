@@ -1,10 +1,5 @@
 import { db } from "@/server/db";
-
-function todayLocalMidnight(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
+import { todayInAppTimezone as todayLocalMidnight } from "@/lib/timezone";
 
 /**
  * Encerramento automático na data definida (brief §20) — sem um worker/cron dedicado na
