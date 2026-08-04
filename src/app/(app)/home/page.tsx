@@ -134,9 +134,8 @@ export default async function HomePage() {
       ) : null}
 
       {score ? (
-        <Card glow className="relative overflow-hidden">
-          <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-apex-accent to-apex-accent-2" />
-          <CardHeader className="flex-row items-center justify-between space-y-0 px-5 pt-4 pb-1">
+        <Card glow>
+          <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle>
               {score.inProgress ? "Hoje" : "Sua nota"} —{" "}
               {new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
