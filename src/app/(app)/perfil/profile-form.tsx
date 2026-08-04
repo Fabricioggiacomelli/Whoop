@@ -47,11 +47,12 @@ export function ProfileForm({
         <Input id="bio" name="bio" defaultValue={bio} maxLength={140} placeholder="Opcional" />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="birthDate">Nascimento</Label>
-          <Input id="birthDate" name="birthDate" type="date" defaultValue={birthDate} />
-        </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="birthDate">Nascimento</Label>
+        <Input id="birthDate" name="birthDate" type="date" defaultValue={birthDate} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
           <Label htmlFor="weightKg">Peso (kg)</Label>
           <Input id="weightKg" name="weightKg" type="number" step="0.1" defaultValue={weightKg} />

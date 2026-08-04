@@ -1,6 +1,7 @@
 import { addDays, addMonths, format, startOfMonth, startOfWeek } from "date-fns";
 
 import { db } from "@/server/db";
+import { previewDailyScore } from "@/server/scoring/engine";
 import type { RankingScope } from "@/generated/prisma/enums";
 
 /**
@@ -142,4 +143,61 @@ export async function getRanking(scope: RankingScope, periodKey: string): Promis
     points: Number(s.points),
     position: s.position,
   }));
+}
+
+export type LiveDailyRow = RankingRow & { inProgress: boolean };
+
+/**
+ * Ranking do dia calculado na hora, sem depender de `RankingSnapshot` (que só existe pra
+ * dias fechados). Quem já fechou o dia entra com a nota final; quem ainda está em
+ * andamento entra com uma prévia calculada pela mesma fórmula, sem persistir nada — o
+ * número muda a cada consulta até o dia fechar de verdade. Quem não tem ciclo nenhum ainda
+ * hoje fica de fora (não zerado — sem dado ainda, não é o mesmo que "zero pontos").
+ */
+export async function getLiveDailyRanking(date: Date): Promise<LiveDailyRow[]> {
+  const users = await db.user.findMany({
+    where: { status: "ACTIVE", deletedAt: null },
+    include: { profile: true, colorAssignment: true },
+  });
+
+  const performances = await db.dailyPerformance.findMany({
+    where: { userId: { in: users.map((u) => u.id) }, competitiveDate: date },
+    include: { dailyScores: true },
+  });
+  const perfByUser = new Map(performances.map((p) => [p.userId, p]));
+
+  const rows = (
+    await Promise.all(
+      users.map(async (user) => {
+        const perf = perfByUser.get(user.id);
+        if (!perf) return null;
+
+        const closedScore = perf.dailyScores[0];
+        let points: number;
+        let inProgress: boolean;
+
+        if ((perf.status === "CLOSED" || perf.status === "REPROCESSED") && closedScore) {
+          points = Number(closedScore.totalPoints);
+          inProgress = false;
+        } else {
+          const preview = await previewDailyScore(user.id, date);
+          if (!preview) return null;
+          points = preview.totalPoints;
+          inProgress = true;
+        }
+
+        return {
+          userId: user.id,
+          nickname: user.profile?.nickname ?? user.email,
+          avatarUrl: user.profile?.avatarUrl ?? null,
+          colorHex: user.colorAssignment?.hex ?? null,
+          points,
+          inProgress,
+        };
+      }),
+    )
+  ).filter((r): r is Exclude<typeof r, null> => r !== null);
+
+  const sorted = [...rows].sort((a, b) => b.points - a.points);
+  return sorted.map((r, index) => ({ ...r, position: index + 1 }));
 }

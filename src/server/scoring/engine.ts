@@ -14,7 +14,7 @@ import type { ScoreCategory } from "@/generated/prisma/enums";
 
 const DEFAULT_SCORING_VERSION_KEY = "v1";
 
-async function loadRules(scoringVersionKey: string): Promise<{ versionId: string; rules: RulesMap }> {
+export async function loadRules(scoringVersionKey: string): Promise<{ versionId: string; rules: RulesMap }> {
   const version = await db.scoringVersion.findUniqueOrThrow({
     where: { key: scoringVersionKey },
     include: { rules: true },
@@ -24,7 +24,7 @@ async function loadRules(scoringVersionKey: string): Promise<{ versionId: string
   return { versionId: version.id, rules };
 }
 
-async function buildDayInput(userId: string, dailyPerformanceId: string): Promise<DayInput | null> {
+export async function buildDayInput(userId: string, dailyPerformanceId: string): Promise<DayInput | null> {
   const performance = await db.dailyPerformance.findUniqueOrThrow({
     where: { id: dailyPerformanceId },
   });
@@ -87,7 +87,7 @@ async function buildDayInput(userId: string, dailyPerformanceId: string): Promis
   };
 }
 
-async function loadActiveRecoveryMode(userId: string, date: Date): Promise<RecoveryModeInfo> {
+export async function loadActiveRecoveryMode(userId: string, date: Date): Promise<RecoveryModeInfo> {
   const mode = await db.recoveryMode.findFirst({
     where: {
       userId,
@@ -250,4 +250,51 @@ export async function computeDailyScore({
   logger.info("scoring.computed", { userId, competitiveDate, totalPoints });
 
   return dailyScore;
+}
+
+export type ScorePreview = { totalPoints: number };
+
+/**
+ * Mesma fórmula do dia fechado, mas sem persistir nada (nenhum DailyScore/ScoreComponent
+ * criado) — usada pra mostrar um "placar parcial" de hoje, antes do dia realmente fechar.
+ * Funciona com o strain ainda subindo: o número muda a cada nova consulta até o dia fechar
+ * de verdade, é só uma prévia, não uma fonte de verdade.
+ */
+export async function previewDailyScore(
+  userId: string,
+  competitiveDate: Date,
+  scoringVersionKey = DEFAULT_SCORING_VERSION_KEY,
+): Promise<ScorePreview | null> {
+  const performance = await db.dailyPerformance.findUnique({
+    where: { userId_competitiveDate: { userId, competitiveDate } },
+  });
+  if (!performance) return null;
+
+  const { rules } = await loadRules(scoringVersionKey);
+  const today = await buildDayInput(userId, performance.id);
+  if (!today) return null;
+
+  const recoveryMode = await loadActiveRecoveryMode(userId, competitiveDate);
+
+  const baseline = await computeBaseline(userId, competitiveDate, 28);
+  const [recentBaseline, longBaseline, history] = await Promise.all([
+    computeBaseline(userId, competitiveDate, 14),
+    computeBaseline(userId, competitiveDate, 84),
+    computeHistoryContext(userId, competitiveDate, baseline.avgTrainingDayStrain),
+  ]);
+
+  const scorerInput: ScorerInput = { today, baseline, rules, recoveryMode, history, recentBaseline, longBaseline };
+
+  const totalPoints =
+    Math.round(
+      (scoreSleep(scorerInput).pointsEarned +
+        scoreRecovery(scorerInput).pointsEarned +
+        scoreStrain(scorerInput).pointsEarned +
+        scoreConsistency(scorerInput).pointsEarned +
+        scoreEvolution(scorerInput).pointsEarned +
+        scoreHabits(scorerInput).pointsEarned) *
+        100,
+    ) / 100;
+
+  return { totalPoints };
 }
